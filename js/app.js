@@ -185,7 +185,9 @@
       html: "<div class='orb o1'></div><div class='orb o2'></div><div class='orb o3'></div>" +
         "<div class='top'><div class='logo'><i></i>BreakDecode</div><a class='gear' href='#/settings' aria-label='Settings'>" + ico(P_GEAR, 22) + "</a></div>" +
         "<div class='mid'><h1 class='hl'>Your breaking,<br><em>decoded.</em></h1><p class='sub'>Coach-style feedback on your moves, in plain words.</p></div>" +
-        "<a class='btn' href='#/start' style='margin-top:0'>Start your journey</a>",
+        "<a class='btn' href='#/start' style='margin-top:0'>Start your journey</a>" +
+        (isStandalone() ? "" : "<button type='button' class='btn ghost' id='addhome' style='margin-top:10px'>Add to Home Screen</button>"),
+      init() { const b = $("#addhome"); if (b) b.onclick = addToHome; },
     };
   }
 
@@ -419,13 +421,25 @@
 
   let installEvt = null;
   window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; });
+  const isStandalone = () => (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  // "Add to Home Screen": one tap on Android, a short how-to on iPhone (Apple doesn't allow a one-tap button)
+  function addToHome() {
+    if (installEvt) { installEvt.prompt(); return; }
+    const steps = isIOS
+      ? ["Open this page in <b>Safari</b> if it isn't already.", "Tap the <b>Share</b> button (the square with an arrow).", "Scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>."]
+      : ["Tap the <b>menu</b> in your browser (the three dots).", "Tap <b>Install app</b> or <b>Add to Home screen</b>.", "Tap <b>Install</b>."];
+    const el = document.createElement("div"); el.className = "gate on";
+    el.innerHTML = "<div class='gbox'><div class='mono'>ADD TO HOME SCREEN</div><h2 style='margin:14px 0 12px'>Put it on your phone</h2>" +
+      "<ol style='margin:0 0 4px 20px;color:var(--dim);line-height:1.55;font-size:15.5px'>" + steps.map(x => "<li style='margin-bottom:10px'>" + x + "</li>").join("") + "</ol>" +
+      "<p class='small' style='margin-top:6px'>Then BreakDecode opens like a normal app, full screen.</p><button type='button' class='btn' id='hdone'>Got it</button></div>";
+    document.body.appendChild(el);
+    $("#hdone", el).onclick = () => el.remove();
+  }
 
   function settingsScreen() {
-    const standalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    const installCard = standalone ? "" :
-      "<div class='card'><h2>Put it on your phone</h2><p>" + (ios ? "Tap the Share button in Safari, then <b>Add to Home Screen</b>. BreakDecode then opens like a normal app." : "Open the browser menu and tap <b>Install app</b> or <b>Add to Home screen</b>. BreakDecode then opens like a normal app.") + "</p>" +
-      "<button type='button' class='btn ghost' id='inst' hidden>Install now</button></div>";
+    const installCard = isStandalone() ? "" :
+      "<div class='card'><h2>Put it on your phone</h2><p>Add BreakDecode to your home screen so it opens like a normal app.</p><button type='button' class='btn ghost' id='inst'>Add to Home Screen</button></div>";
     const model = lsGet("bd_model", "lite");
     return {
       css: CSS.settings + ".seg{display:flex;gap:10px;margin-top:12px}.seg button{flex:1;padding:13px 10px;border-radius:16px;border:1px solid var(--line);background:var(--card);color:var(--txt);font:600 15px 'Space Grotesk',sans-serif;cursor:pointer}.seg button.on{background:linear-gradient(90deg,var(--mint),var(--cyan));color:#04110d;border-color:transparent}",
@@ -447,7 +461,7 @@
         });
         $$("#seg button").forEach(b => { if (b.dataset.m === model) b.className = "on"; b.onclick = () => { lsSet("bd_model", b.dataset.m); $$("#seg button").forEach(x => { x.className = x.dataset.m === b.dataset.m ? "on" : ""; }); }; });
         $("#rules").onclick = () => Gate.open(true);
-        const inst = $("#inst"); if (inst && installEvt) { inst.hidden = false; inst.onclick = () => { installEvt.prompt(); }; }
+        const inst = $("#inst"); if (inst) inst.onclick = addToHome;
         const del = $("#del"), msg = $("#delmsg"); let armed = false, t;
         del.onclick = async () => {
           if (!armed) { armed = true; del.textContent = "Tap again to confirm"; clearTimeout(t); t = setTimeout(() => { armed = false; del.textContent = "Delete all my results"; }, 4000); return; }
