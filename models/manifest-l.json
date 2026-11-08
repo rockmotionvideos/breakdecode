@@ -1,0 +1,24 @@
+{
+ "name": "RTMPose-l",
+ "parts": [
+  "rtmpose-l.part00",
+  "rtmpose-l.part01",
+  "rtmpose-l.part02",
+  "rtmpose-l.part03",
+  "rtmpose-l.part04",
+  "rtmpose-l.part05",
+  "rtmpose-l.part06",
+  "rtmpose-l.part07",
+  "rtmpose-l.part08",
+  "rtmpose-l.part09",
+  "rtmpose-l.part10",
+  "rtmpose-l.part11",
+  "rtmpose-l.part12",
+  "rtmpose-l.part13",
+  "rtmpose-l.part14"
+ ],
+ "inputW": 192,
+ "inputH": 256,
+ "keypoints": 26,
+ "mb": 112
+}
