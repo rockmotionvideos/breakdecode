@@ -316,7 +316,7 @@
         };
         try {
           const data = await POSE.scanVideo(job.file, {
-            model: lsGet("bd_model", "lite"), slow: job.slow || 1, preview: $("#pv"), cancelled: () => cancelled,
+            model: lsGet("bd_model2", "heavy"), slow: job.slow || 1, preview: $("#pv"), cancelled: () => cancelled,
             onProgress: (f, text, eta) => setP(f * 100, text, eta),
           });
           if (cancelled) return;
@@ -326,7 +326,11 @@
           if (!res.ok) { lastProblem = { kind: "noflare" }; location.hash = "#/problem"; return; }
           const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
           delete res.filmTips;
-          await Store.put({ id, t: Date.now(), move: job.move, thumb: data.thumb, findings: res.findings, res, stats: { slow: job.slow || 1, seconds: data.seconds, msPerFrame: data.msPerFrame, read: data.read, delegate: data.delegate, model: data.model, w: data.w, h: data.h, duration: data.duration } });
+          await Store.put({ id, t: Date.now(), move: job.move, video: job.file, thumb: data.thumb, findings: res.findings, res, stats: { slow: job.slow || 1, seconds: data.seconds, msPerFrame: data.msPerFrame, read: data.read, delegate: data.delegate, model: data.model, w: data.w, h: data.h, duration: data.duration } });
+          try {   // keep the video of the last 2 scans only, so the phone's storage doesn't fill up
+            const old = sortOld(await Store.all()).filter(x => x.video && x.id !== id).slice(0, -1);
+            for (const o of old) await Store.put(Object.assign({}, o, { video: null }));
+          } catch (e) { }
           setP(100, "Done", null);
           setTimeout(() => { location.hash = "#/result/" + id; }, 400);
         } catch (e) {
@@ -355,7 +359,8 @@
   async function resultScreen(id) {
     const sc = await Store.get(id);
     if (!sc) return { redirect: "#/results" };
-    const doc = window.BDResult.build(Object.assign({ filmTips: J.FILM_TIPS }, sc.res));
+    let videoURL = null; try { if (sc.video) videoURL = URL.createObjectURL(sc.video); } catch (e) { }
+    const doc = window.BDResult.build(Object.assign({ filmTips: J.FILM_TIPS, videoURL, slow: (sc.stats && sc.stats.slow) || 1 }, sc.res));
     return {
       css: ".resframe{position:fixed;inset:0;width:100%;height:100%;border:0;background:#07090a;z-index:5}",
       cls: " fullframe",
@@ -451,12 +456,12 @@
   function settingsScreen() {
     const installCard = isStandalone() ? "" :
       "<div class='card'><h2>Put it on your phone</h2><p>Add BreakDecode to your home screen so it opens like a normal app.</p><button type='button' class='btn ghost' id='inst'>Add to Home Screen</button></div>";
-    const model = lsGet("bd_model", "lite");
+    const model = lsGet("bd_model2", "heavy");
     return {
       css: CSS.settings + ".seg{display:flex;gap:10px;margin-top:12px}.seg button{flex:1;padding:13px 10px;border-radius:16px;border:1px solid var(--line);background:var(--card);color:var(--txt);font:600 15px 'Space Grotesk',sans-serif;cursor:pointer}.seg button.on{background:linear-gradient(90deg,var(--mint),var(--cyan));color:#04110d;border-color:transparent}",
       html: BACK_MENU + "<div class='mono'>SETTINGS</div><h1>Settings.</h1>" +
         "<div class='card'><h2>Colors</h2><p>Pick the look you like. It's remembered on this phone.</p><div class='sw' id='sw'></div></div>" +
-        "<div class='card'><h2>Scan quality</h2><p>Fast is quicker. Sharper reads tricky moves better but takes longer.</p><div class='seg' id='seg'><button type='button' data-m='lite'>Fast</button><button type='button' data-m='full'>Sharper</button></div></div>" +
+        "<div class='card'><h2>Scan quality</h2><p>Best sees upside-down moves most accurately and is the default. Fast is quicker but can get legs wrong.</p><div class='seg' id='seg'><button type='button' data-m='lite'>Fast</button><button type='button' data-m='full'>Sharper</button><button type='button' data-m='heavy'>Best</button></div></div>" +
         "<div class='card'><h2>Filming guidelines</h2><p>The five rules for a clean scan.</p><button type='button' class='btn ghost' id='rules'>View guidelines</button></div>" +
         installCard +
         "<div class='card'><h2>Your videos</h2><p>Your videos never leave your phone, and they aren't saved. Only your results and a small picture are, on this phone. You can delete them any time.</p>" +
@@ -470,7 +475,7 @@
           b.onclick = () => { setTheme(k, true); $$("button", box).forEach(x => { x.className = ""; }); b.className = "on"; };
           w.appendChild(b); w.appendChild(l); box.appendChild(w);
         });
-        $$("#seg button").forEach(b => { if (b.dataset.m === model) b.className = "on"; b.onclick = () => { lsSet("bd_model", b.dataset.m); $$("#seg button").forEach(x => { x.className = x.dataset.m === b.dataset.m ? "on" : ""; }); }; });
+        $$("#seg button").forEach(b => { if (b.dataset.m === model) b.className = "on"; b.onclick = () => { lsSet("bd_model2", b.dataset.m); $$("#seg button").forEach(x => { x.className = x.dataset.m === b.dataset.m ? "on" : ""; }); }; });
         Store.all().then(all => {
           const l = sortOld(all).filter(x => x.stats && x.stats.seconds).pop(), el = $("#spd");
           if (l && el) el.textContent = "Last scan: " + Math.round(l.stats.seconds) + " s to read a " + Math.round(l.stats.duration || 0) + " s video (" + (l.stats.delegate === "GPU" ? "graphics chip" : l.stats.delegate === "CPU" ? "processor only" : l.stats.delegate) + ", " + (l.stats.msPerFrame || "?") + " ms per picture).";
@@ -531,7 +536,7 @@
   window.addEventListener("hashchange", render);
   window.BD = { Store, render, setTheme, progressRows, shareCards, Gate };   // handy for testing
   render();
-  setTimeout(() => { try { POSE.warmup(lsGet("bd_model", "lite")); } catch (e) { } }, 2500);
+  setTimeout(() => { try { POSE.warmup(lsGet("bd_model2", "heavy")); } catch (e) { } }, 2500);
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.register("sw.js").catch(() => { });
   }

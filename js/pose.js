@@ -42,12 +42,51 @@
   }
 
   async function makeLandmarker(vis, name) {
-    const make = delegate => vis.mod.PoseLandmarker.createFromOptions(vis.fileset, {
-      baseOptions: { modelAssetPath: MODEL(name), delegate },
-      runningMode: "VIDEO", numPoses: 1,
+    // IMAGE mode: every picture is looked at fresh, with no memory of the last one. That matters upside down,
+    // because the tracking mode tends to keep believing the dancer is still the right way up.
+    const make = (delegate, nm) => vis.mod.PoseLandmarker.createFromOptions(vis.fileset, {
+      baseOptions: { modelAssetPath: MODEL(nm), delegate },
+      runningMode: "IMAGE", numPoses: 1,
+      minPoseDetectionConfidence: 0.35, minPosePresenceConfidence: 0.35, minTrackingConfidence: 0.35,
     });
-    try { return { lm: await make("GPU"), delegate: "GPU" }; }
-    catch (e) { return { lm: await make("CPU"), delegate: "CPU" }; }
+    try { return { lm: await make("GPU", name), delegate: "GPU", model: name }; }
+    catch (e) {
+      const nm = name === "heavy" ? "full" : name;   // the biggest model is too slow without the graphics chip
+      return { lm: await make("CPU", nm), delegate: "CPU", model: nm };
+    }
+  }
+
+  // ---- crop and rotate helpers ----
+  // The dancer is cut out of the picture (zoomed in, so the model sees more detail) and, when upside down, turned the
+  // right way up before the model looks. The answers are then mapped back onto the full picture.
+  const S = 320;                                   // the square the model is shown
+  function cropGeom(r) { const k = S / Math.max(r.w, r.h); return { k, ox: (S - r.w * k) / 2, oy: (S - r.h * k) / 2 }; }
+  // a point found in the square (0..1) -> normalised position in the full picture
+  function unmap(x, y, r, rot, cw, ch) {
+    if (rot) { x = 1 - x; y = 1 - y; }
+    const g = cropGeom(r);
+    return [(r.x + (x * S - g.ox) / g.k) / cw, (r.y + (y * S - g.oy) / g.k) / ch];
+  }
+  function mapBack(lms, r, rot, cw, ch) {
+    return lms.map(p => { const q = unmap(p.x, p.y, r, rot, cw, ch); return { x: q[0], y: q[1], z: p.z, visibility: p.visibility == null ? 1 : p.visibility }; });
+  }
+  const CORE = [11, 12, 23, 24, 25, 26, 27, 28];
+  function quality(lms) { if (!lms) return 0; let s2 = 0; for (const i of CORE) s2 += lms[i].visibility == null ? 1 : lms[i].visibility; return s2 / CORE.length; }
+  // where to cut: around the last place we saw the body, with room for the next move
+  function nextRect(lms, cw, ch, old) {
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, n = 0;
+    for (const i of [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28, 29, 30]) {
+      const p = lms[i]; if (!p || (p.visibility == null ? 1 : p.visibility) < 0.3) continue;
+      x0 = Math.min(x0, p.x * cw); x1 = Math.max(x1, p.x * cw); y0 = Math.min(y0, p.y * ch); y1 = Math.max(y1, p.y * ch); n++;
+    }
+    if (n < 5) return null;
+    const m = Math.max(x1 - x0, y1 - y0, 0.22 * Math.max(cw, ch));
+    let w = (x1 - x0) * 1.35 + m * 0.35, h = (y1 - y0) * 1.35 + m * 0.35;
+    let cx0 = (x0 + x1) / 2, cy0 = (y0 + y1) / 2;
+    if (old) { cx0 = old.cx + (cx0 - old.cx) * 0.7; cy0 = old.cy + (cy0 - old.cy) * 0.7; w = Math.max(w, old.w0 * 0.9); h = Math.max(h, old.h0 * 0.9); }
+    w = Math.min(w, cw); h = Math.min(h, ch);
+    const x = Math.max(0, Math.min(cw - w, cx0 - w / 2)), y = Math.max(0, Math.min(ch - h, cy0 - h / 2));
+    return { x, y, w, h, cx: cx0, cy: cy0, w0: w, h0: h };
   }
 
   // MediaPipe has no "top of the head" point. The judge was tuned with one, so we estimate it from the nose and neck.
@@ -71,10 +110,45 @@
     cx.shadowBlur = 0;
   }
 
+
+  // MediaPipe often mixes up left and right limbs when a dancer is upside down (the left leg suddenly becomes the right).
+  // That is what makes legs jump and cross in the replay. Fix it by checking, frame by frame, which way round the pair
+  // is closest to where it was a moment ago.
+  const PAIRS = { all: ["shoulder", "elbow", "wrist", "hip", "knee", "ankle", "heel"], arms: ["shoulder", "elbow", "wrist"], legs: ["hip", "knee", "ankle", "heel"] };
+  function fixLeftRight(data) {
+    const J = data.joints, n = data.times.length, ref = {}, age = {};
+    const get = (nm, i) => { const d = J[nm]; return Number.isFinite(d.x[i]) ? [d.x[i], d.y[i]] : null; };
+    const swapAt = (grp, i) => {
+      for (const k of PAIRS[grp]) {
+        const a = J["left_" + k], b = J["right_" + k];
+        for (const key of ["x", "y", "c"]) { const t = a[key][i]; a[key][i] = b[key][i]; b[key][i] = t; }
+      }
+    };
+    let swaps = 0;
+    for (let i = 0; i < n; i++) {
+      for (const grp of ["all", "arms", "legs"]) {
+        let same = 0, swap = 0, used = 0;
+        for (const k of PAIRS[grp]) {
+          const L = get("left_" + k, i), R = get("right_" + k, i), rl = ref["left_" + k], rr = ref["right_" + k];
+          if (!L || !R || !rl || !rr || age["left_" + k] > 8 || age["right_" + k] > 8) continue;
+          same += Math.hypot(L[0] - rl[0], L[1] - rl[1]) + Math.hypot(R[0] - rr[0], R[1] - rr[1]);
+          swap += Math.hypot(L[0] - rr[0], L[1] - rr[1]) + Math.hypot(R[0] - rl[0], R[1] - rl[1]);
+          used++;
+        }
+        if (used >= (grp === "all" ? 4 : 2) && same > 8 && swap < 0.6 * same) { swapAt(grp, i); swaps++; }
+      }
+      for (const nm of Object.keys(J)) {
+        const p = get(nm, i);
+        if (p) { ref[nm] = p; age[nm] = 0; } else age[nm] = (age[nm] == null ? 99 : age[nm] + 1);
+      }
+    }
+    return swaps;
+  }
+
   // Start downloading the model quietly while the person is still on the menu, so the first scan isn't slow.
   function warmup(model) {
     if (window.BD_STUB) return;
-    loadVision().then(() => fetch(MODEL(model || "lite")).catch(() => { })).catch(() => { });
+    loadVision().then(() => fetch(MODEL(model || "heavy")).catch(() => { })).catch(() => { });
   }
 
   // Scan a video file. opts: { model: "lite"|"full", preview: <canvas>, onProgress(fraction, text, secondsLeft), cancelled() }
@@ -84,12 +158,12 @@
     opts = opts || {};
     const say = (f, t, e) => opts.onProgress && opts.onProgress(f, t, e);
     const stub = window.BD_STUB || null;       // a test hook: pose numbers supplied by a test instead of the model
-    let lm = null, delegate = "stub";
+    let lm = null, delegate = "stub", usedModel = opts.model || "heavy";
     if (!stub) {
       say(0.01, "Getting the model ready (first time takes a moment)...");
-      const vis = await loadVision();
-      const made = await makeLandmarker(vis, opts.model || "lite");
-      lm = made.lm; delegate = made.delegate;
+      const made = window.BD_FAKELM ? { lm: window.BD_FAKELM, delegate: "fake", model: "fake" }   // a test hook
+        : await makeLandmarker(await loadVision(), opts.model || "heavy");
+      lm = made.lm; delegate = made.delegate; usedModel = made.model;
     }
     const f = Math.max(1, +opts.slow || 1);   // 1 = normal video. 4 or 8 = slow motion that plays 4x or 8x slower than real life
     const video = document.createElement("video");
@@ -112,6 +186,34 @@
       let pcx = null;
       if (opts.preview) { opts.preview.width = cw; opts.preview.height = ch; pcx = opts.preview.getContext("2d"); }
 
+      const cc = document.createElement("canvas"); cc.width = cc.height = S; const cxx = cc.getContext("2d");
+      let rect = null, rot = false, cropOk = true;
+      const FULL = { x: 0, y: 0, w: cw, h: ch };
+      const look = (r, rt) => {
+        const g = cropGeom(r);
+        cxx.save(); cxx.fillStyle = "#000"; cxx.fillRect(0, 0, S, S);
+        if (rt) { cxx.translate(S, S); cxx.rotate(Math.PI); }
+        cxx.drawImage(frame, r.x, r.y, r.w, r.h, g.ox, g.oy, r.w * g.k, r.h * g.k);
+        cxx.restore();
+        const out = lm.detect(cc);
+        const l = out && out.landmarks && out.landmarks[0];
+        return l ? mapBack(l, r, rt, cw, ch) : null;
+      };
+      const findPerson = () => {
+        if (!cropOk) { const o = lm.detect(frame); return o && o.landmarks && o.landmarks[0] || null; }
+        try {
+          const r = rect || FULL;
+          let best = look(r, rot), bq = quality(best), brot = rot;
+          if (bq < 0.7) {                         // not sure? look again with the picture turned over
+            const alt = look(r, !rot), aq = quality(alt);
+            if (aq > bq + 0.05) { best = alt; bq = aq; brot = !rot; }
+          }
+          if (best && bq >= 0.35) { rot = brot; rect = nextRect(best, cw, ch, rect); }
+          else { rect = null; if (!best) return null; }
+          return best;
+        } catch (e) { cropOk = false; return null; }   // if cropping ever fails, fall back to plain full-picture reading
+      };
+
       const got = [];                       // what we read: { t, pts }
       let thumb = null, thumbDone = false, lastMT = -1, ema = 0, count = 0, lastProc = -1e9;
       const interval = f / RATE;                 // time between the pictures we read, on the video's own clock
@@ -131,8 +233,7 @@
           let pts = null;
           if (stub) pts = stub(mt / f);
           else {
-            const r = lm.detectForVideo(frame, Math.round(mt * 1000) + 1);
-            pts = r && r.landmarks && r.landmarks[0] ? r.landmarks[0] : null;
+            pts = findPerson();
           }
           const ms = performance.now() - a; ema = count ? ema * 0.85 + ms * 0.15 : ms; count++;
           got.push({ t: mt / f, pts });
@@ -171,7 +272,7 @@
 
       // put what we read onto an even 30-per-second timeline, which is what the judge expects
       const n = Math.max(2, Math.floor(realDur * RATE));
-      const data = { times: [], found: [], joints: {}, w: cw, h: ch, duration: realDur, slow: f, delegate, model: opts.model || "lite" };
+      const data = { times: [], found: [], joints: {}, w: cw, h: ch, duration: realDur, slow: f, delegate, model: usedModel };
       for (const j of JOINT_NAMES) data.joints[j] = { x: [], y: [], c: [] };
       let p = 0;
       for (let i = 0; i < n; i++) {
@@ -187,6 +288,7 @@
         put("head", hd, hd ? hd.v : NaN);
         for (const name of Object.keys(LM)) { const q = g && g[LM[name]]; put(name, q || null, q ? (q.visibility == null ? 1 : q.visibility) : NaN); }
       }
+      data.swapsFixed = fixLeftRight(data);
       data.thumb = thumb;
       data.seconds = (performance.now() - t0) / 1000;
       data.msPerFrame = Math.round(ema);
@@ -199,5 +301,5 @@
     }
   }
 
-  window.BDPose = { scanVideo, warmup, MAX_SECONDS, RATE, JOINT_NAMES };
+  window.BDPose = { _t: { unmap, cropGeom, S, nextRect, quality }, scanVideo, warmup, MAX_SECONDS, RATE, JOINT_NAMES };
 })();
