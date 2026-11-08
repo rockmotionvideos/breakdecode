@@ -98,6 +98,7 @@
     return { x: n.x + 0.55 * (n.x - nx), y: n.y + 0.55 * (n.y - ny), v: n.visibility == null ? 1 : n.visibility };
   }
 
+  // The live preview while scanning: the person's own video with the body lines drawn on it as they are found.
   function draw(cx, cv, src, lm) {
     cx.drawImage(src, 0, 0, cv.width, cv.height);
     if (!lm) return;

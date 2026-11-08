@@ -308,9 +308,9 @@
         "<p class='small'>Keep this screen open. Your video stays on your phone.</p><button type='button' class='btn ghost' id='cancel'>Cancel</button>",
       async init() {
         $("#cancel").onclick = () => { cancelled = true; location.hash = "#/start"; };
-        const LOOKS = ["Scanning your legs...", "Finding your hands and where they land...", "Watching your hips...", "Following your head and shoulders...", "Checking how wide your legs open...", "Counting your rounds...", "Checking your speed and rhythm...", "Looking at your balance..."];
+        const LOOKS = ["Scanning your legs...", "Finding your hands...", "Watching your hips...", "Counting your rounds..."];
         let li = 0; const lk = $("#look"); lk.textContent = LOOKS[0];
-        const lt = setInterval(() => { const el = document.getElementById("look"); if (!el) { clearInterval(lt); return; } li = (li + 1) % LOOKS.length; el.textContent = LOOKS[li]; }, 2300);
+        const lt = setInterval(() => { const el = document.getElementById("look"); if (!el) { clearInterval(lt); return; } li = (li + 1) % LOOKS.length; el.textContent = LOOKS[li]; }, 5200);
         const setP = (p, step, eta) => {
           if (cancelled) return; p = Math.min(100, p);
           $("#pct").textContent = Math.floor(p) + "%"; $("#fill").style.width = p + "%"; if (step) $("#step").textContent = step;
@@ -341,10 +341,10 @@
           if (!res.ok) { lastProblem = { kind: "noflare", debug: dbg }; location.hash = "#/problem"; return; }
           const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
           delete res.filmTips;
-          await Store.put({ id, t: Date.now(), move: job.move, raw: data, thumb: data.thumb, findings: res.findings, res, stats: { slow: job.slow || 1, seconds: data.seconds, msPerFrame: data.msPerFrame, read: data.read, delegate: data.delegate, model: data.model, w: data.w, h: data.h, duration: data.duration } });
+          await Store.put({ id, t: Date.now(), move: job.move, video: job.file, raw: data, thumb: data.thumb, findings: res.findings, res, stats: { slow: job.slow || 1, seconds: data.seconds, msPerFrame: data.msPerFrame, read: data.read, delegate: data.delegate, model: data.model, w: data.w, h: data.h, duration: data.duration } });
           try {   // keep the video of the last 2 scans only, so the phone's storage doesn't fill up
             const old = sortOld(await Store.all()).filter(x => x.raw && x.id !== id);
-            for (const o of old) await Store.put(Object.assign({}, o, { raw: null }));
+            for (const o of old) await Store.put(Object.assign({}, o, { raw: null, video: null }));
           } catch (e) { }
           setP(100, "Done", null);
           setTimeout(() => { location.hash = "#/result/" + id; }, 400);
@@ -375,7 +375,7 @@
     const sc = await Store.get(id);
     if (!sc) return { redirect: "#/results" };
     let videoURL = null; try { if (sc.video) videoURL = URL.createObjectURL(sc.video); } catch (e) { }
-    const doc = window.BDResult.build(Object.assign({ filmTips: J.FILM_TIPS, videoURL, slow: (sc.stats && sc.stats.slow) || 1 }, sc.res));
+    const doc = window.BDResult.build(Object.assign({ filmTips: J.FILM_TIPS, videoURL, vw: sc.stats && sc.stats.w, vh: sc.stats && sc.stats.h, slow: (sc.stats && sc.stats.slow) || 1 }, sc.res));
     return {
       css: ".resframe{position:fixed;inset:0;width:100%;height:100%;border:0;background:#07090a;z-index:5}",
       cls: " fullframe",
@@ -469,19 +469,20 @@
   }
 
   function exercisesScreen(focus) {
-    const X = window.BD_EXERCISES || {};
+    const X = window.BD_EXERCISES || {}, NAMES = window.BD_EXERCISE_NAMES || {};
     const card = ex => {
       let media = "";
       if (ex.video) media = /^https?:/.test(ex.video) ? "<a class='btn' style='margin:12px 0 0' target='_blank' rel='noopener' href='" + E(ex.video) + "'>Watch the video</a>" : "<video controls playsinline preload='metadata' style='width:100%;border-radius:14px;margin-top:12px' src='" + E(ex.video) + "'></video>";
       return "<div class='card'><h2>" + E(ex.title || "") + "</h2><p>" + E(ex.text || "") + "</p>" + media + "</div>";
     };
-    const sec = (key, title) => {
+    const sec = key => {
       const list = X[key] || [];
-      return "<h3 class='lh' id='ex-" + key + "'>" + title + "</h3>" + (list.length ? list.map(card).join("") : "<div class='card'><p class='small' style='margin:0'>Exercises for this are coming soon.</p></div>");
+      return "<h3 class='lh'>" + E(NAMES[key] || key) + "</h3>" + (list.length ? list.map(card).join("") : "<div class='card'><p class='small' style='margin:0'>Exercises for this are coming soon.</p></div>");
     };
+    const keys = Object.keys(NAMES), one = focus && NAMES[focus];
     return {
-      html: "<a class='back' href='javascript:history.back()'>&larr; Back</a><div class='mono'>EXERCISES</div><h1>Train <em>it.</em></h1>" + sec("flare", "For your flares") + sec("windmill", "Windmill basics"),
-      init() { if (focus) { const el = document.getElementById("ex-" + focus); if (el) el.scrollIntoView(); } }
+      html: "<a class='back' href='javascript:history.back()'>&larr; Back</a><div class='mono'>EXERCISES</div><h1>" + (one ? E(NAMES[focus]) + " <em>fix.</em>" : "Train <em>it.</em>") + "</h1>" +
+        (one ? sec(focus) + "<a class='btn ghost' href='#/exercises'>All exercises</a>" : keys.map(sec).join(""))
     };
   }
 

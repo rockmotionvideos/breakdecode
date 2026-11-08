@@ -68,8 +68,60 @@ function draw(fi, u = 0) {
     cx.beginPath(); cx.arc(q[0], q[1], 4.5, 0, 7); cx.fillStyle = '#fff'; cx.fill();
   }
 }
+
+// ---- the person's own video, shown as a glowing wireframe with markers on the joints ----
+let VID = null, vdraw = false;
+if (R.video) {
+  VID = document.createElement('video'); VID.muted = true; VID.playsInline = true; VID.setAttribute('playsinline', ''); VID.preload = 'auto'; VID.src = R.video;
+  const EW = 260, EH = Math.max(2, Math.round(EW * R.vh / R.vw)), ec = document.createElement('canvas'); ec.width = EW; ec.height = EH;
+  const ex = ec.getContext('2d', { willReadFrequently: true });
+  const vs = Math.min(W / R.vw, H / R.vh), dw = R.vw * vs, dh = R.vh * vs, dx = (W - dw) / 2, dy = (H - dh) / 2;
+  const VP = (p) => [dx + p[0] * vs, dy + p[1] * vs];
+  const f = R.slow || 1, mt0 = R.t0 * f, mt1 = (R.t0 + total) * f;
+  function wireDraw(fr) {
+    ex.drawImage(VID, 0, 0, EW, EH);
+    const im = ex.getImageData(0, 0, EW, EH), d = im.data, g = new Float32Array(EW * EH);
+    for (let i = 0, k = 0; i < d.length; i += 4, k++) g[k] = d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11;
+    for (let y = 1; y < EH - 1; y++) for (let x = 1; x < EW - 1; x++) {
+      const k = y * EW + x, gx = g[k + 1] - g[k - 1] + (g[k - EW + 1] - g[k - EW - 1] + g[k + EW + 1] - g[k + EW - 1]) * .5, gy = g[k + EW] - g[k - EW] + (g[k + EW + 1] - g[k - EW + 1] + g[k + EW - 1] - g[k - EW - 1]) * .5;
+      const m = Math.min(255, Math.sqrt(gx * gx + gy * gy) * 1.6), o = k * 4;
+      d[o] = 60; d[o + 1] = 235; d[o + 2] = 205; d[o + 3] = m > 28 ? Math.min(255, m * 1.4) : 0;
+    }
+    ex.putImageData(im, 0, 0);
+    cx.setTransform(SS, 0, 0, SS, 0, 0);
+    cx.fillStyle = '#061014'; cx.fillRect(0, 0, W, H);
+    cx.globalAlpha = .3; cx.drawImage(VID, dx, dy, dw, dh); cx.globalAlpha = 1;
+    cx.imageSmoothingEnabled = true; cx.drawImage(ec, dx, dy, dw, dh);
+    if (!fr) return;
+    cx.lineCap = 'round'; cx.lineJoin = 'round';
+    cx.lineWidth = 2; cx.strokeStyle = 'rgba(255,255,255,.7)';
+    for (const [a, b] of BONES) { const pa = fr[J[a]], pb = fr[J[b]]; if (!pa || !pb) continue; const A = VP(pa), B = VP(pb); cx.beginPath(); cx.moveTo(A[0], A[1]); cx.lineTo(B[0], B[1]); cx.stroke(); }
+    const sh = [fr[J.left_shoulder], fr[J.right_shoulder]].filter(Boolean), hd = fr[J.head];
+    if (hd && sh.length === 2) { const A = VP([(sh[0][0] + sh[1][0]) / 2, (sh[0][1] + sh[1][1]) / 2]), B = VP(hd); cx.beginPath(); cx.moveTo(A[0], A[1]); cx.lineTo(B[0], B[1]); cx.stroke(); }
+    for (const n of R.joints) {
+      const p = fr[J[n]]; if (!p) continue; const q = VP(p), big = n === 'head';
+      cx.beginPath(); cx.arc(q[0], q[1], big ? 9 : 6.5, 0, 7); cx.strokeStyle = '#2ef2c0'; cx.lineWidth = 2; cx.stroke();
+      cx.beginPath(); cx.arc(q[0], q[1], 2.6, 0, 7); cx.fillStyle = '#fff'; cx.fill();
+    }
+  }
+  VID.addEventListener('error', () => { VID = null; });
+  VID.addEventListener('loadeddata', () => { VID.currentTime = mt0; VID.play().catch(() => { }); vdraw = true; });
+  function vtick() {
+    if (!VID) return false;
+    if (!vdraw) return false;
+    let m = VID.currentTime;
+    if (m >= mt1 - .02 || m < mt0 - .1) { if (m >= mt1 - .02) { VID.currentTime = mt0; } m = Math.max(m, mt0); }
+    const real = m / f, t = Math.max(0, Math.min(total - .0001, real - R.t0)), fi = Math.min(N - 1, Math.floor(t / R.dt));
+    wireDraw(pose(fi, t / R.dt - fi));
+    clock.textContent = String(Math.floor(real / 60)).padStart(2, '0') + ':' + (real % 60).toFixed(1).padStart(4, '0');
+    prog.style.width = (t / total * 100) + '%';
+    return true;
+  }
+  window.__vtick = vtick;
+}
 let t0 = null;
 function tick(ts) {
+  if (window.__vtick && VID && window.__vtick()) { requestAnimationFrame(tick); return; }
   if (t0 === null) t0 = ts;
   const t = ((ts - t0) / 1000) % (total + HOLD);
   const tc = Math.min(t, total - 0.0001);
@@ -86,8 +138,8 @@ if (N > 1) requestAnimationFrame(tick);
   function build(res) {
     const problems = res.problems, track = res.track;
     const tiles = res.tiles.map(t => {
-      if (t.state === "bad") return `<div class="tile bad"><div class="trow"><span class="ti bad">${ICON_BAD}</span><span class="chip bad">NEEDS WORK</span></div><div class="tname">${E(t.name)}</div><p>${E(t.short)}</p></div>`;
-      if (t.state === "ok") return `<div class="tile ok${t.wide ? " wide" : ""}"><div class="trow"><span class="ti ok">${ICON_OK}</span><span class="chip ok">SOLID</span></div><div class="tname">${E(t.name)}</div><div class="td">${E(t.desc)}</div></div>`;
+      if (t.state === "bad") return `<div class="tile bad tap" onclick="parent.location.hash='#/exercises/${t.key}'"><div class="trow"><span class="ti bad">${ICON_BAD}</span><span class="chip bad">NEEDS WORK</span></div><div class="tname">${E(t.name)}</div><p>${E(t.short)}</p><div class="tex">EXERCISES &rarr;</div></div>`;
+      if (t.state === "ok") return `<div class="tile ok tap${t.wide ? " wide" : ""}" onclick="parent.location.hash='#/exercises/${t.key}'"><div class="trow"><span class="ti ok">${ICON_OK}</span><span class="chip ok">SOLID</span></div><div class="tname">${E(t.name)}</div><div class="td">${E(t.desc)}</div><div class="tex">EXERCISES &rarr;</div></div>`;
       return `<div class="tile na${t.wide ? " wide" : ""}"><div class="trow"><span class="ti na">${ICON_NA}</span><span class="chip na">NOT IN VIDEO</span></div><div class="tname">${E(t.name)}</div><div class="td">${E(t.desc)}</div></div>`;
     }).join("");
 
@@ -151,9 +203,6 @@ if (N > 1) requestAnimationFrame(tick);
   <section class="rise" style="--d:.45s">
     <div class="head"><span class="idx">02</span><span class="label">WHAT I SAW</span></div>
     <div class="grid">${tiles}</div>
-  </section>
-  <section class="rise" style="--d:.5s">
-    <a href="#" onclick="parent.location.hash='#/exercises';return false" class="exlink"><span class="exic">&#9654;</span><span><b>EXERCISES TO HELP</b><br>Drills and videos to fix what I saw</span><span class="exar">&rarr;</span></a>
   </section>`;
       const nxt = res.tips.map(t => { const wm = /WINDMILL/i.test(t.title); return `<div class="next${"?!".includes(t.badge) ? " ask" : ""}"${wm ? ` onclick="parent.location.hash='#/exercises/windmill'" style="cursor:pointer"` : ""}><div class="nn">${E(t.badge)}</div><h4>${E(t.title)}</h4><p>${E(t.text)}</p>${wm ? `<div class="go">SEE WINDMILL EXERCISES &rarr;</div>` : ""}</div>`; }).join("");
       tipsSec = `
@@ -164,7 +213,7 @@ if (N > 1) requestAnimationFrame(tick);
     }
     const tracking = { ok: "CLEAN", caution: "PARTIAL", refuse: "POOR" }[track];
     const chips = "";
-    const replayJSON = JSON.stringify(res.replay).replace(/<\//g, "<\\/");
+    const replayJSON = JSON.stringify(Object.assign({}, res.replay, res.videoURL && res.vw && res.vh ? { video: res.videoURL, vw: res.vw, vh: res.vh, slow: res.slow || 1 } : {})).replace(/<\//g, "<\\/");
     const script = REPLAY_SCRIPT.replace("__REPLAY__", () => replayJSON);
     const nav = `<div style="position:fixed;left:14px;right:14px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:99;display:flex;gap:10px;padding:8px;border-radius:24px;background:rgba(7,9,10,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.12);box-shadow:0 14px 40px rgba(0,0,0,.5);font-family:system-ui,sans-serif">
 <a href="#" onclick="parent.location.hash='#/start';return false" style="flex:1;text-align:center;padding:13px;border-radius:17px;background:rgba(255,255,255,.07);color:#e8f3f0;text-decoration:none;font-weight:600">Menu</a>
@@ -176,7 +225,7 @@ if (N > 1) requestAnimationFrame(tick);
 <title>Flare feedback</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>${window.BD_CSS.feedback}
-.exlink{display:flex;align-items:center;gap:14px;padding:16px;border-radius:22px;text-decoration:none;color:var(--text);background:linear-gradient(150deg,rgba(46,242,192,.14),rgba(255,255,255,.03) 65%);border:1px solid rgba(46,242,192,.35);font-size:14px;line-height:1.4;color:#b7c3c0}.exlink b{font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.16em;color:var(--text)}.exic{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,var(--mint),var(--cyan));color:#04120e;font-size:14px}.exar{margin-left:auto;color:var(--mint);font-size:20px}.next .go{margin-top:14px;font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.14em;color:var(--cyan)}</style></head>
+.tap{cursor:pointer}.tex{margin-top:10px;font-family:'Space Mono',monospace;font-size:9.5px;letter-spacing:.14em;color:var(--cyan)}.exlink{display:flex;align-items:center;gap:14px;padding:16px;border-radius:22px;text-decoration:none;color:var(--text);background:linear-gradient(150deg,rgba(46,242,192,.14),rgba(255,255,255,.03) 65%);border:1px solid rgba(46,242,192,.35);font-size:14px;line-height:1.4;color:#b7c3c0}.exlink b{font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.16em;color:var(--text)}.exic{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,var(--mint),var(--cyan));color:#04120e;font-size:14px}.exar{margin-left:auto;color:var(--mint);font-size:20px}.next .go{margin-top:14px;font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.14em;color:var(--cyan)}</style></head>
 <body>
 <div class="bg"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i><div class="grid-bg"></div><div class="grain"></div></div>
 <main class="phone">
