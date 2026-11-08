@@ -315,7 +315,7 @@
           if (!res.ok) { lastProblem = { kind: "noflare" }; location.hash = "#/problem"; return; }
           const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
           delete res.filmTips;
-          await Store.put({ id, t: Date.now(), move: job.move, thumb: data.thumb, findings: res.findings, res, stats: { seconds: data.seconds, delegate: data.delegate, model: data.model, w: data.w, h: data.h, duration: data.duration } });
+          await Store.put({ id, t: Date.now(), move: job.move, thumb: data.thumb, findings: res.findings, res, stats: { seconds: data.seconds, msPerFrame: data.msPerFrame, read: data.read, delegate: data.delegate, model: data.model, w: data.w, h: data.h, duration: data.duration } });
           setP(100, "Done", null);
           setTimeout(() => { location.hash = "#/result/" + id; }, 400);
         } catch (e) {
@@ -450,7 +450,7 @@
         installCard +
         "<div class='card'><h2>Your videos</h2><p>Your videos never leave your phone, and they aren't saved. Only your results and a small picture are, on this phone. You can delete them any time.</p>" +
         "<button type='button' class='btn ghost danger' id='del'>Delete all my results</button><p class='small' id='delmsg'></p></div>" +
-        "<div class='card'><h2>About</h2><p>BreakDecode, early version. Flare is the only move I can judge so far. Windmill and Airflare are coming later.</p></div>",
+        "<div class='card'><h2>About</h2><p>BreakDecode, early version. Flare is the only move I can judge so far. Windmill and Airflare are coming later.</p><p class='small' id='spd'></p></div>",
       init() {
         const box = $("#sw"); let cur = lsGet("bd_theme", "mint");
         Object.keys(T).forEach(k => {
@@ -460,6 +460,10 @@
           w.appendChild(b); w.appendChild(l); box.appendChild(w);
         });
         $$("#seg button").forEach(b => { if (b.dataset.m === model) b.className = "on"; b.onclick = () => { lsSet("bd_model", b.dataset.m); $$("#seg button").forEach(x => { x.className = x.dataset.m === b.dataset.m ? "on" : ""; }); }; });
+        Store.all().then(all => {
+          const l = sortOld(all).filter(x => x.stats && x.stats.seconds).pop(), el = $("#spd");
+          if (l && el) el.textContent = "Last scan: " + Math.round(l.stats.seconds) + " s to read a " + Math.round(l.stats.duration || 0) + " s video (" + (l.stats.delegate === "GPU" ? "graphics chip" : l.stats.delegate === "CPU" ? "processor only" : l.stats.delegate) + ", " + (l.stats.msPerFrame || "?") + " ms per picture).";
+        });
         $("#rules").onclick = () => Gate.open(true);
         const inst = $("#inst"); if (inst) inst.onclick = addToHome;
         const del = $("#del"), msg = $("#delmsg"); let armed = false, t;
@@ -516,6 +520,7 @@
   window.addEventListener("hashchange", render);
   window.BD = { Store, render, setTheme, progressRows, shareCards, Gate };   // handy for testing
   render();
+  setTimeout(() => { try { POSE.warmup(lsGet("bd_model", "lite")); } catch (e) { } }, 2500);
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.register("sw.js").catch(() => { });
   }
