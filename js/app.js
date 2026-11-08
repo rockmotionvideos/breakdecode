@@ -261,25 +261,36 @@
       css: "",
       html: "<a class='back' href='#/moves'>&larr; Moves</a><div class='mono'>FLARE SCAN</div><h1>Upload your <em>flare.</em></h1>" +
         "<p class='lead'>A clip of " + MAX_SECONDS + " seconds or shorter with one or more flares.</p>" +
-        "<form id='f'><input id='file' type='file' name='video' accept='video/*' required><button class='btn' id='go' type='submit'>Scan my flare</button></form>" +
+        "<form id='f'><input id='file' type='file' name='video' accept='video/*' required>" +
+        "<div class='seg' id='slow'><button type='button' data-f='1' class='on'>Normal speed</button><button type='button' data-f='4'>Slow-mo 120 fps</button><button type='button' data-f='8'>Slow-mo 240 fps</button></div>" +
+        "<p class='small' id='slowhelp'>Filmed in slow motion? Pick it so I read the timing right. iPhone slow-mo is usually 240 fps.</p>" +
+        "<button class='btn' id='go' type='submit'>Scan my flare</button></form>" +
         "<p class='small' id='msg'></p><button type='button' class='btn ghost' id='again'>View filming guidelines</button>",
       init() {
         if (!Gate.seen()) Gate.open(false);
         const f = $("#f"), msg = $("#msg"), go = $("#go"), file = $("#file");
         $("#again").addEventListener("click", () => Gate.open(true));
+        let slowF = 1, vdur = 0;
+        const check = () => {
+          if (!vdur) return;
+          const real = vdur / slowF;
+          if (real > MAX_SECONDS + 0.5) {
+            msg.textContent = "That video is about " + Math.round(real) + " seconds" + (slowF > 1 ? " in real time" : "") + ". The limit is " + MAX_SECONDS + " seconds." +
+              (slowF === 1 ? " If it's a slow-motion video, choose the slow-motion option above, otherwise please trim it." : " Please trim it and choose it again.");
+            msg.className = "small err"; go.disabled = true;
+          } else { msg.textContent = ""; msg.className = "small"; go.disabled = false; }
+        };
+        $$("#slow button").forEach(b => { b.onclick = () => { slowF = +b.dataset.f; $$("#slow button").forEach(x => { x.className = x === b ? "on" : ""; }); check(); }; });
         file.addEventListener("change", () => {
           const fl = file.files[0]; if (!fl) return; const v = document.createElement("video"); v.preload = "metadata";
-          v.onloadedmetadata = () => {
-            URL.revokeObjectURL(v.src);
-            if (v.duration > MAX_SECONDS + 0.5) { msg.textContent = "That video is " + Math.round(v.duration) + " seconds. The limit is " + MAX_SECONDS + " seconds. Please trim it and choose it again."; msg.className = "small err"; file.value = ""; }
-            else { msg.textContent = ""; msg.className = "small"; }
-          };
+          v.onloadedmetadata = () => { URL.revokeObjectURL(v.src); vdur = v.duration; check(); };
           v.src = URL.createObjectURL(fl);
         });
         f.addEventListener("submit", e => {
           e.preventDefault(); const fl = file.files[0];
           if (!fl) { msg.textContent = "Please choose a video first."; msg.className = "small err"; return; }
-          pending = { file: fl, move: m.key }; go.disabled = true; location.hash = "#/scan";
+          if (go.disabled) return;
+          pending = { file: fl, move: m.key, slow: slowF }; go.disabled = true; location.hash = "#/scan";
         });
       },
     };
@@ -305,7 +316,7 @@
         };
         try {
           const data = await POSE.scanVideo(job.file, {
-            model: lsGet("bd_model", "lite"), preview: $("#pv"), cancelled: () => cancelled,
+            model: lsGet("bd_model", "lite"), slow: job.slow || 1, preview: $("#pv"), cancelled: () => cancelled,
             onProgress: (f, text, eta) => setP(f * 100, text, eta),
           });
           if (cancelled) return;
@@ -315,7 +326,7 @@
           if (!res.ok) { lastProblem = { kind: "noflare" }; location.hash = "#/problem"; return; }
           const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
           delete res.filmTips;
-          await Store.put({ id, t: Date.now(), move: job.move, thumb: data.thumb, findings: res.findings, res, stats: { seconds: data.seconds, msPerFrame: data.msPerFrame, read: data.read, delegate: data.delegate, model: data.model, w: data.w, h: data.h, duration: data.duration } });
+          await Store.put({ id, t: Date.now(), move: job.move, thumb: data.thumb, findings: res.findings, res, stats: { slow: job.slow || 1, seconds: data.seconds, msPerFrame: data.msPerFrame, read: data.read, delegate: data.delegate, model: data.model, w: data.w, h: data.h, duration: data.duration } });
           setP(100, "Done", null);
           setTimeout(() => { location.hash = "#/result/" + id; }, 400);
         } catch (e) {
@@ -515,7 +526,7 @@
   }
 
   // ---------------------------------------------------------------- start
-  document.getElementById("base-css").textContent = CSS.base + "[hidden]{display:none!important}.noscroll{overflow:hidden}.noscroll .wrap{padding:0;max-width:none}.sc canvas{display:block}";
+  document.getElementById("base-css").textContent = CSS.base + ".seg{display:flex;gap:8px;margin:14px 0 6px}.seg button{flex:1;padding:12px 6px;border-radius:15px;border:1px solid var(--line);background:var(--card);color:var(--txt);font:600 13.5px 'Space Grotesk',sans-serif;cursor:pointer}.seg button.on{background:linear-gradient(90deg,var(--mint),var(--cyan));color:#04110d;border-color:transparent}[hidden]{display:none!important}.noscroll{overflow:hidden}.noscroll .wrap{padding:0;max-width:none}.sc canvas{display:block}";
   setTheme(lsGet("bd_theme", "mint"), false);
   window.addEventListener("hashchange", render);
   window.BD = { Store, render, setTheme, progressRows, shareCards, Gate };   // handy for testing

@@ -91,6 +91,7 @@
       const made = await makeLandmarker(vis, opts.model || "lite");
       lm = made.lm; delegate = made.delegate;
     }
+    const f = Math.max(1, +opts.slow || 1);   // 1 = normal video. 4 or 8 = slow motion that plays 4x or 8x slower than real life
     const video = document.createElement("video");
     video.muted = true; video.defaultMuted = true; video.playsInline = true; video.preload = "auto";
     video.setAttribute("playsinline", ""); video.setAttribute("webkit-playsinline", ""); video.setAttribute("muted", "");
@@ -102,7 +103,8 @@
       await new Promise((ok, no) => { video.onloadedmetadata = ok; video.onerror = () => no(new Error("This phone couldn't open that video. Try an mp4 or mov.")); });
       const dur = video.duration;
       if (!isFinite(dur) || dur <= 0) throw new Error("I couldn't read how long that video is.");
-      if (dur > MAX_SECONDS + 0.5) throw new Error("That video is " + Math.round(dur) + " seconds. The limit is " + MAX_SECONDS + " seconds. Please trim it and try again.");
+      const realDur = dur / f;                   // how long the move really took, in real life
+      if (realDur > MAX_SECONDS + 0.5) throw new Error("That video is about " + Math.round(realDur) + " seconds" + (f > 1 ? " in real time" : "") + ". The limit is " + MAX_SECONDS + " seconds. Please trim it and try again." + (f === 1 ? " If it's a slow-motion video, choose slow motion before scanning." : ""));
       const w = video.videoWidth, h = video.videoHeight, sc = Math.min(1, MAX_SIDE / Math.max(w, h));
       const cw = Math.max(2, Math.round(w * sc)), ch = Math.max(2, Math.round(h * sc));
       const frame = document.createElement("canvas"); frame.width = cw; frame.height = ch;
@@ -111,7 +113,8 @@
       if (opts.preview) { opts.preview.width = cw; opts.preview.height = ch; pcx = opts.preview.getContext("2d"); }
 
       const got = [];                       // what we read: { t, pts }
-      let thumb = null, thumbDone = false, lastMT = -1, ema = 0, count = 0;
+      let thumb = null, thumbDone = false, lastMT = -1, ema = 0, count = 0, lastProc = -1e9;
+      const interval = f / RATE;                 // time between the pictures we read, on the video's own clock
       const t0 = performance.now();
       await new Promise((resolve, reject) => {
         let done = false, lastBeat = performance.now();
@@ -120,17 +123,19 @@
         video.addEventListener("ended", () => stop());
         const handle = mt => {
           if (mt <= lastMT) return; lastMT = mt; lastBeat = performance.now();
+          if (mt - lastProc < interval * 0.9) return;   // fast or slow-motion video: we only need about 30 pictures per real second
+          lastProc = mt;
           if (opts.cancelled && opts.cancelled()) throw new Error("cancelled");
           const a = performance.now();
           fx.drawImage(video, 0, 0, cw, ch);
           let pts = null;
-          if (stub) pts = stub(mt);
+          if (stub) pts = stub(mt / f);
           else {
             const r = lm.detectForVideo(frame, Math.round(mt * 1000) + 1);
             pts = r && r.landmarks && r.landmarks[0] ? r.landmarks[0] : null;
           }
           const ms = performance.now() - a; ema = count ? ema * 0.85 + ms * 0.15 : ms; count++;
-          got.push({ t: mt, pts });
+          got.push({ t: mt / f, pts });
           if (!thumbDone && mt >= dur * 0.4) {
             thumbDone = true;
             const m = Math.min(1, 720 / Math.max(w, h)), tc = document.createElement("canvas");
@@ -140,7 +145,7 @@
           }
           if (pcx && count % 2 === 0) draw(pcx, opts.preview, frame, pts);
           // if this phone is slower than the video, slow the video down so we still see ~30 pictures per second of it
-          if (count % 8 === 0 && !stub) video.playbackRate = Math.max(0.1, Math.min(1, (1000 / RATE) / Math.max(ema, 1)));
+          if (count % 8 === 0 && !stub) video.playbackRate = Math.max(0.1, Math.min(Math.min(f, 8), interval / (Math.max(ema, 1) / 1000)));
           const fr = Math.min(1, mt / dur), el = (performance.now() - t0) / 1000;
           say(fr * 0.94, count < 4 ? "Finding you in the video..." : "Reading your moves...", fr > 0.08 ? el * (1 - fr) / fr : null);
         };
@@ -159,13 +164,14 @@
           };
           requestAnimationFrame(tick);
         }
+        video.playbackRate = Math.min(f, 8);       // slow-motion files are read faster than they play, then timed as real life
         video.play().catch(() => stop(new Error("This phone wouldn't let me play the video to read it. Tap Scan again, and keep this screen open.")));
       });
       if (got.length < 5) throw new Error("I couldn't read enough of that video. Try filming it again.");
 
       // put what we read onto an even 30-per-second timeline, which is what the judge expects
-      const n = Math.max(2, Math.floor(dur * RATE));
-      const data = { times: [], found: [], joints: {}, w: cw, h: ch, duration: dur, delegate, model: opts.model || "lite" };
+      const n = Math.max(2, Math.floor(realDur * RATE));
+      const data = { times: [], found: [], joints: {}, w: cw, h: ch, duration: realDur, slow: f, delegate, model: opts.model || "lite" };
       for (const j of JOINT_NAMES) data.joints[j] = { x: [], y: [], c: [] };
       let p = 0;
       for (let i = 0; i < n; i++) {
