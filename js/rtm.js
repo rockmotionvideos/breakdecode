@@ -70,7 +70,8 @@
   }
 
   // Turn the crop into the numbers the model wants. box = {x0,y0,x1,y1} in pixels of `src`.
-  function prepare(src, box) {
+  // mode: "n" = as is, "flip" = mirrored, "rot" = turned upside down (a second opinion for hard frames)
+  function prepare(src, box, mode) {
     const { IW, IH, tx } = st;
     const cxm = (box.x0 + box.x1) / 2, cym = (box.y0 + box.y1) / 2;
     let w = (box.x1 - box.x0) * 1.25, h = (box.y1 - box.y0) * 1.25;
@@ -78,19 +79,24 @@
     tx.setTransform(1, 0, 0, 1, 0, 0); tx.clearRect(0, 0, IW, IH);
     const s = IW / w;
     tx.imageSmoothingEnabled = true; tx.imageSmoothingQuality = "high";
-    tx.setTransform(s, 0, 0, s, -(cxm - w / 2) * s, -(cym - h / 2) * s);
+    const x0 = cxm - w / 2, y0 = cym - h / 2;
+    if (mode === "rot") tx.setTransform(-s, 0, 0, -s, IW + x0 * s, IH + y0 * s);
+    else if (mode === "flip") tx.setTransform(-s, 0, 0, s, IW + x0 * s, -y0 * s);
+    else tx.setTransform(s, 0, 0, s, -x0 * s, -y0 * s);
     tx.drawImage(src, 0, 0);
     tx.setTransform(1, 0, 0, 1, 0, 0);
     const d = tx.getImageData(0, 0, IW, IH).data, n = IW * IH, t = new Float32Array(3 * n);
     for (let i = 0, p = 0; i < n; i++, p += 4) {
       t[i] = (d[p] - MEAN[0]) / STD[0]; t[n + i] = (d[p + 1] - MEAN[1]) / STD[1]; t[2 * n + i] = (d[p + 2] - MEAN[2]) / STD[2];
     }
-    return { t, cxm, cym, w, h };
+    return { t, cxm, cym, w, h, mode };
   }
 
   // Find the body points in the box. Returns [{x, y, s}] (pixels of `src`, score 0..1) for the model's points, in order.
-  async function estimate(src, box) {
-    const { sess, IW, IH, K } = st, p = prepare(src, box);
+  const FLIP = [0, 2, 1, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13, 16, 15, 17, 18, 19, 21, 20, 23, 22, 25, 24];   // left <-> right for the model's 26 points
+  async function estimate(src, box, mode) {
+    mode = mode || "n";
+    const { sess, IW, IH, K } = st, p = prepare(src, box, mode);
     const out = await sess.run({ [st.inName]: new ort.Tensor("float32", p.t, [1, 3, IH, IW]) });
     const X = out[st.ox].data, Y = out[st.oy].data, WB = X.length / K, HB = Y.length / K, pts = [];
     for (let k = 0; k < K; k++) {
@@ -98,8 +104,10 @@
       for (let i = 0, o = k * WB; i < WB; i++) { const v = X[o + i]; if (v > mx) { mx = v; ix = i; } }
       for (let i = 0, o = k * HB; i < HB; i++) { const v = Y[o + i]; if (v > my) { my = v; iy = i; } }
       const lx = ix / (WB / IW), ly = iy / (HB / IH);       // back to the model's own picture (the model works at 2x detail)
-      pts.push({ x: lx / IW * p.w + p.cxm - p.w / 2, y: ly / IH * p.h + p.cym - p.h / 2, s: Math.max(0, Math.min(1, Math.min(mx, my))) });
+      const ux = mode === "n" ? lx : IW - lx, uy = mode === "rot" ? IH - ly : ly;
+      pts.push({ x: ux / IW * p.w + p.cxm - p.w / 2, y: uy / IH * p.h + p.cym - p.h / 2, s: Math.max(0, Math.min(1, Math.min(mx, my))) });
     }
+    if (mode === "flip" && K === 26) return FLIP.map(i => pts[i]);   // the mirror image has left and right swapped, so swap them back
     return pts;
   }
 

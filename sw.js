@@ -1,7 +1,7 @@
 // FILE NAME: sw.js
 // Lets BreakDecode open fast and work without a signal after the first visit.
 // Change the number below whenever you upload a new version, so phones pick it up.
-const V = "bd-v12";
+const V = "bd-v13";
 const MODELS = "bd-models";   // the Pro model files live in their own box, so a new app version does not make everyone download them again
 const SHELL = ["./", "index.html", "js/styles.js", "js/judge.js", "js/rtm.js", "js/pose.js", "js/result.js", "js/share.js", "js/app.js",
   "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png"];

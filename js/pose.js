@@ -262,12 +262,27 @@
         a.head = { x: kp[17].x / cw, y: kp[17].y / ch, v: kp[17].s };
         return a;
       };
+      const merge = (a, b) => a.map((p, i) => { const q = b[i], t = p.s + q.s; return t < 0.02 ? p : { x: (p.x * p.s + q.x * q.s) / t, y: (p.y * p.s + q.y * q.s) / t, s: Math.max(p.s, q.s) }; });
       const findRtm = async () => {
+        const acquiring = !tbox;
         let box = tbox || (lastBox ? grow(lastBox, 1.7) : { x0: 0, y0: 0, x1: cw, y1: ch });
         let kp = await BDRtm.estimate(frame, box), q = qualH(kp);
         if (q < 0.35 && tbox) {                   // not sure: look again with more room around the dancer
           const kp2 = await BDRtm.estimate(frame, grow(tbox, 1.8)), q2 = qualH(kp2);
           if (q2 > q) { kp = kp2; q = q2; }
+        }
+        if (acquiring && q >= 0.35) {             // first sight of the dancer: zoom right in on them and look again
+          const tb = boxFromKp(kp, null);
+          if (tb) { const k2 = await BDRtm.estimate(frame, tb), q2 = qualH(k2); if (q2 >= q - 0.02) { kp = k2; q = q2; } }
+        }
+        const fast = ema > 0 && ema < 260;        // the extra looks below only if this phone can afford them
+        if (q < 0.6 && (fast || q < 0.4)) {       // a hard frame (often upside down): look with the picture turned over and keep the better
+          const b2 = tbox || box, kr = await BDRtm.estimate(frame, b2, "rot"), qr = qualH(kr);
+          if (qr > q + 0.03) { kp = kr; q = qr; }
+        }
+        if (q < 0.75 && q >= 0.3 && fast) {       // still not certain: also look mirrored and blend the two
+          const kf = await BDRtm.estimate(frame, tbox || box, "flip"), qf = qualH(kf);
+          if (qf >= q * 0.9) { kp = merge(kp, kf); q = Math.max(q, qualH(kp)); }
         }
         if (q >= 0.35) { tbox = boxFromKp(kp, tbox) || tbox; lastBox = tbox; lostN = 0; }
         else { tbox = null; if (++lostN > 6) lastBox = null; }

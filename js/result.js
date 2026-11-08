@@ -33,7 +33,7 @@ function pose(fi, u) {
 }
 function line(A, B, glow, core) {
   cx.beginPath(); cx.moveTo(A[0], A[1]); cx.lineTo(B[0], B[1]);
-  cx.strokeStyle = 'rgba(46,242,192,.16)'; cx.lineWidth = glow; cx.stroke();
+  cx.strokeStyle = 'rgba(46,242,192,.10)'; cx.lineWidth = glow; cx.stroke();
   cx.strokeStyle = '#2ef2c0'; cx.lineWidth = core; cx.stroke();
   cx.strokeStyle = 'rgba(225,255,248,.85)'; cx.lineWidth = Math.max(1, core / 3); cx.stroke();
 }
@@ -50,22 +50,20 @@ function draw(fi, u = 0) {
   cx.lineCap = 'round'; cx.lineJoin = 'round';
   for (const [a, b] of BONES) {
     const pa = fr[J[a]], pb = fr[J[b]]; if (!pa || !pb) continue;
-    line(P(pa), P(pb), 18, 6);
+    line(P(pa), P(pb), 10, 3.5);
   }
   const sh = [fr[J.left_shoulder], fr[J.right_shoulder]].filter(Boolean);
   const hd = fr[J.head];
   if (hd) {
     const Hh = P(hd);
-    if (sh.length === 2) line(P([(sh[0][0] + sh[1][0]) / 2, (sh[0][1] + sh[1][1]) / 2]), Hh, 18, 6);
-    cx.beginPath(); cx.arc(Hh[0], Hh[1], 24, 0, 7); cx.fillStyle = 'rgba(39,200,255,.14)'; cx.fill();
-    cx.beginPath(); cx.arc(Hh[0], Hh[1], 15, 0, 7);
-    cx.fillStyle = '#0b0d0e'; cx.fill(); cx.lineWidth = 4; cx.strokeStyle = '#27c8ff'; cx.stroke();
+    if (sh.length === 2) line(P([(sh[0][0] + sh[1][0]) / 2, (sh[0][1] + sh[1][1]) / 2]), Hh, 10, 3.5);
+    cx.beginPath(); cx.arc(Hh[0], Hh[1], 13, 0, 7);
+    cx.fillStyle = '#0b0d0e'; cx.fill(); cx.lineWidth = 2.5; cx.strokeStyle = '#27c8ff'; cx.stroke();
   }
   for (const n of R.joints) {
     if (n === 'head') continue; const p = fr[J[n]]; if (!p) continue;
     const q = P(p);
-    cx.beginPath(); cx.arc(q[0], q[1], 13, 0, 7); cx.fillStyle = 'rgba(46,242,192,.18)'; cx.fill();
-    cx.beginPath(); cx.arc(q[0], q[1], 6.5, 0, 7); cx.fillStyle = '#fff'; cx.fill();
+    cx.beginPath(); cx.arc(q[0], q[1], 4.5, 0, 7); cx.fillStyle = '#fff'; cx.fill();
   }
   if (R.lost[fi]) {
     cx.font = "22px 'Space Mono', monospace"; cx.textAlign = 'center';
@@ -165,7 +163,7 @@ if (N > 1) requestAnimationFrame(tick);
   </section>`;
     }
     const tracking = { ok: "CLEAN", caution: "PARTIAL", refuse: "POOR" }[track];
-    const chips = `<span class="pill"><i></i>ROUNDS SEEN <b>${E(res.roundsSeen)}</b></span><span class="pill"><i></i>TRACKING <b>${tracking}</b></span>`;
+    const chips = `<span class="pill"><i></i>TRACKING <b>${tracking}</b></span>`;
     const replayJSON = JSON.stringify(res.replay).replace(/<\//g, "<\\/");
     const script = REPLAY_SCRIPT.replace("__REPLAY__", () => replayJSON);
     const nav = `<div style="position:fixed;left:14px;right:14px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:99;display:flex;gap:10px;padding:8px;border-radius:24px;background:rgba(7,9,10,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.12);box-shadow:0 14px 40px rgba(0,0,0,.5);font-family:system-ui,sans-serif">
