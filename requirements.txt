@@ -1,5 +1,0 @@
-flask
-numpy
-opencv-python
-onnxruntime
-rtmlib
