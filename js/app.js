@@ -315,15 +315,21 @@
           $("#eta").textContent = eta != null ? "About " + fmt(eta) + " left" : (p < 5 ? "Working out how long this will take..." : "");
         };
         try {
-          const data = await POSE.scanVideo(job.file, {
-            model: lsGet("bd_model2", "heavy"), slow: job.slow || 1, preview: $("#pv"), cancelled: () => cancelled,
-            onProgress: (f, text, eta) => setP(f * 100, text, eta),
-          });
+          const o0 = { model: lsGet("bd_model2", "full"), slow: job.slow || 1, preview: $("#pv"), cancelled: () => cancelled, onProgress: (f, text, eta) => setP(f * 100, text, eta) };
+          let data = await POSE.scanVideo(job.file, o0);
           if (cancelled) return;
           setP(95, "Judging your flare...", null);
           await new Promise(r => setTimeout(r, 30));
-          const res = J.analyze(data);
-          if (!res.ok) { lastProblem = { kind: "noflare" }; location.hash = "#/problem"; return; }
+          let res = J.analyze(data), dbg = "Read " + data.read + " pictures, body found in " + Math.round(data.foundRate * 100) + "% (" + data.model + ", " + data.delegate + ").";
+          if (!res.ok || data.foundRate < 0.5) {   // not happy with that: look again the plain, proven way and keep the better answer
+            setP(4, "Taking a closer look...", null);
+            const d2 = await POSE.scanVideo(job.file, Object.assign({}, o0, { simple: true }));
+            if (cancelled) return;
+            const r2 = J.analyze(d2);
+            dbg += " Second look: " + Math.round(d2.foundRate * 100) + "% (" + d2.model + ", " + d2.delegate + ").";
+            if (r2.ok || (!res.ok && d2.foundRate > data.foundRate)) { data = d2; res = r2; }
+          }
+          if (!res.ok) { lastProblem = { kind: "noflare", debug: dbg }; location.hash = "#/problem"; return; }
           const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
           delete res.filmTips;
           await Store.put({ id, t: Date.now(), move: job.move, video: job.file, thumb: data.thumb, findings: res.findings, res, stats: { slow: job.slow || 1, seconds: data.seconds, msPerFrame: data.msPerFrame, read: data.read, delegate: data.delegate, model: data.model, w: data.w, h: data.h, duration: data.duration } });
@@ -352,7 +358,7 @@
     return {
       css: "",
       html: "<div class='mono' style='color:var(--coral)'>COULDN'T SCAN IT</div><h1>Let's <em>film it again.</em></h1><p class='lead'>" + E(why) + "</p>" +
-        "<div class='card'><ul class='tips'>" + tips + "</ul></div><a class='btn' href='#/move/flare'>Try another video</a><a class='btn ghost' href='#/'>Home</a>",
+        "<div class='card'><ul class='tips'>" + tips + "</ul></div>" + (p.debug ? "<p class='small mono' style='opacity:.6'>" + E(p.debug) + "</p>" : "") + "<a class='btn' href='#/move/flare'>Try another video</a><a class='btn ghost' href='#/'>Home</a>",
     };
   }
 
@@ -456,12 +462,12 @@
   function settingsScreen() {
     const installCard = isStandalone() ? "" :
       "<div class='card'><h2>Put it on your phone</h2><p>Add BreakDecode to your home screen so it opens like a normal app.</p><button type='button' class='btn ghost' id='inst'>Add to Home Screen</button></div>";
-    const model = lsGet("bd_model2", "heavy");
+    const model = lsGet("bd_model2", "full");
     return {
       css: CSS.settings + ".seg{display:flex;gap:10px;margin-top:12px}.seg button{flex:1;padding:13px 10px;border-radius:16px;border:1px solid var(--line);background:var(--card);color:var(--txt);font:600 15px 'Space Grotesk',sans-serif;cursor:pointer}.seg button.on{background:linear-gradient(90deg,var(--mint),var(--cyan));color:#04110d;border-color:transparent}",
       html: BACK_MENU + "<div class='mono'>SETTINGS</div><h1>Settings.</h1>" +
         "<div class='card'><h2>Colors</h2><p>Pick the look you like. It's remembered on this phone.</p><div class='sw' id='sw'></div></div>" +
-        "<div class='card'><h2>Scan quality</h2><p>Best sees upside-down moves most accurately and is the default. Fast is quicker but can get legs wrong.</p><div class='seg' id='seg'><button type='button' data-m='lite'>Fast</button><button type='button' data-m='full'>Sharper</button><button type='button' data-m='heavy'>Best</button></div></div>" +
+        "<div class='card'><h2>Scan quality</h2><p>Sharper is the default. Best is the most detailed but a big download and slower. Fast is quickest but can get legs wrong.</p><div class='seg' id='seg'><button type='button' data-m='lite'>Fast</button><button type='button' data-m='full'>Sharper</button><button type='button' data-m='heavy'>Best</button></div></div>" +
         "<div class='card'><h2>Filming guidelines</h2><p>The five rules for a clean scan.</p><button type='button' class='btn ghost' id='rules'>View guidelines</button></div>" +
         installCard +
         "<div class='card'><h2>Your videos</h2><p>Your videos never leave your phone, and they aren't saved. Only your results and a small picture are, on this phone. You can delete them any time.</p>" +
@@ -536,7 +542,7 @@
   window.addEventListener("hashchange", render);
   window.BD = { Store, render, setTheme, progressRows, shareCards, Gate };   // handy for testing
   render();
-  setTimeout(() => { try { POSE.warmup(lsGet("bd_model2", "heavy")); } catch (e) { } }, 2500);
+  setTimeout(() => { try { POSE.warmup(lsGet("bd_model2", "full")); } catch (e) { } }, 2500);
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.register("sw.js").catch(() => { });
   }

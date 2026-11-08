@@ -1,7 +1,7 @@
 // FILE NAME: sw.js
 // Lets BreakDecode open fast and work without a signal after the first visit.
 // Change the number below whenever you upload a new version, so phones pick it up.
-const V = "bd-v8";
+const V = "bd-v9";
 const SHELL = ["./", "index.html", "js/styles.js", "js/judge.js", "js/pose.js", "js/result.js", "js/share.js", "js/app.js",
   "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png"];
 const OUTSIDE = ["cdn.jsdelivr.net", "unpkg.com", "storage.googleapis.com", "fonts.googleapis.com", "fonts.gstatic.com"];

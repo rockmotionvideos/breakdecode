@@ -177,15 +177,6 @@ function startMesh() {
       const CW = 760, CH = Math.max(520, Math.min(1000, Math.round(CW * vh0 / vw0)));
       cv.width = CW; cv.height = CH; cv.style.aspectRatio = CW + '/' + CH;
       const k0 = Math.min(CW / vw0, CH / vh0), dw = vw0 * k0, dh = vh0 * k0, dx = (CW - dw) / 2, dy = (CH - dh) / 2;
-      const PW = 150, PH = Math.max(40, Math.round(PW * vh0 / vw0));
-      const sm = document.createElement('canvas'); sm.width = PW; sm.height = PH; const sx = sm.getContext('2d', { willReadFrequently: true });
-      const ec = document.createElement('canvas'); ec.width = PW; ec.height = PH; const ex = ec.getContext('2d');
-      const mc = document.createElement('canvas'); mc.width = PW; mc.height = PH; const mx = mc.getContext('2d');
-      const tc = document.createElement('canvas'); tc.width = PW; tc.height = PH; const tx = tc.getContext('2d');
-      const eimg = ex.createImageData(PW, PH), mimg = mx.createImageData(PW, PH);
-      const lum = new Float32Array(PW * PH), prev = new Float32Array(PW * PH);
-      const G = 4, GW = Math.ceil(PW / G), GH = Math.ceil(PH / G), act = new Float32Array(GW * GH);
-      const kx = dw / PW, ky = dh / PH;
       let lastT = -1, first = true;
       ready = true; clearTimeout(guard);
       v.currentTime = start; v.playbackRate = rate;
@@ -193,59 +184,15 @@ function startMesh() {
       play();
       function frame(ts) {
         if (dead) return; requestAnimationFrame(frame);
-        if (v.currentTime >= end - 0.03 || v.ended) { v.currentTime = start; first = true; tx.clearRect(0, 0, PW, PH); play(); return; }
+        if (v.currentTime >= end - 0.03 || v.ended) { v.currentTime = start; first = true; play(); return; }
         if (v.readyState < 2 || v.currentTime === lastT) return;
         lastT = v.currentTime; const T = ts / 1000;
-        sx.drawImage(v, 0, 0, PW, PH);
-        const d = sx.getImageData(0, 0, PW, PH).data, ed = eimg.data, md = mimg.data;
-        for (let i = 0, p = 0; i < lum.length; i++, p += 4) lum[i] = d[p] * 0.3 + d[p + 1] * 0.59 + d[p + 2] * 0.11;
-        act.fill(0);
-        for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) {
-          const i = y * PW + x, p = i * 4; let e = 0, m = 0;
-          if (x > 0 && y > 0 && x < PW - 1 && y < PH - 1) e = Math.min(255, (Math.abs(lum[i + 1] - lum[i - 1]) + Math.abs(lum[i + PW] - lum[i - PW])) * 1.5);
-          if (!first) { const dm = Math.abs(lum[i] - prev[i]); m = dm > 12 ? Math.min(255, (dm - 12) * 6) : 0; }
-          ed[p] = 46; ed[p + 1] = 242; ed[p + 2] = 192; ed[p + 3] = e * 0.85;
-          md[p] = 39; md[p + 1] = 200; md[p + 2] = 255; md[p + 3] = m;
-          act[((y / G) | 0) * GW + ((x / G) | 0)] += (e * 0.5 + m) / (G * G);
-        }
-        prev.set(lum); first = false;
-        ex.putImageData(eimg, 0, 0); mx.putImageData(mimg, 0, 0);
-        tx.globalCompositeOperation = 'destination-out'; tx.fillStyle = 'rgba(0,0,0,.16)'; tx.fillRect(0, 0, PW, PH);
-        tx.globalCompositeOperation = 'source-over'; tx.drawImage(mc, 0, 0);
-
         cx.globalCompositeOperation = 'source-over'; cx.fillStyle = '#05090a'; cx.fillRect(0, 0, CW, CH);
         cx.imageSmoothingEnabled = true;
         cx.drawImage(v, dx, dy, dw, dh);
-        cx.fillStyle = 'rgba(3,14,16,.62)'; cx.fillRect(dx, dy, dw, dh);
-        cx.globalCompositeOperation = 'color'; cx.fillStyle = 'rgba(46,242,192,.5)'; cx.fillRect(dx, dy, dw, dh);
-        cx.globalCompositeOperation = 'lighter';
-        cx.globalAlpha = 0.85; cx.drawImage(ec, dx, dy, dw, dh);
-        cx.globalAlpha = 0.9; cx.drawImage(tc, dx, dy, dw, dh);
-        cx.globalAlpha = 1;
-        // the mesh: points and lines that appear where the body is moving
-        const TH = 26, buckets = [[], [], []];
-        const px = (i, j) => dx + (i * G + 2) * kx + Math.sin(i * 7.1 + j * 3.3 + T * 2.2) * 1.6;
-        const py = (i, j) => dy + (j * G + 2) * ky + Math.cos(i * 4.7 + j * 5.9 + T * 1.9) * 1.6;
-        cx.lineWidth = 1;
-        for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) {
-          const a = act[j * GW + i]; if (a < TH) continue;
-          for (const [di, dj] of [[1, 0], [0, 1], [1, 1], [-1, 1]]) {
-            const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= GW || nj >= GH) continue;
-            const b = act[nj * GW + ni]; if (b < TH) continue;
-            const s = Math.min(2, (((a + b) / 2) - TH) / 30) | 0;
-            buckets[s].push(px(i, j), py(i, j), px(ni, nj), py(ni, nj));
-          }
-        }
-        const al = [0.28, 0.45, 0.7];
-        for (let s = 0; s < 3; s++) {
-          cx.strokeStyle = 'rgba(120,255,225,' + al[s] + ')'; cx.beginPath();
-          const q = buckets[s]; for (let n = 0; n < q.length; n += 4) { cx.moveTo(q[n], q[n + 1]); cx.lineTo(q[n + 2], q[n + 3]); }
-          cx.stroke();
-        }
-        cx.fillStyle = 'rgba(235,255,250,.9)';
-        for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) {
-          if (act[j * GW + i] < TH * 1.6) continue; cx.beginPath(); cx.arc(px(i, j), py(i, j), 1.8, 0, 7); cx.fill();
-        }
+        // a gentle cool grade so the footage sits in the app, nothing drawn on the dancer
+        cx.fillStyle = 'rgba(3,14,16,.28)'; cx.fillRect(dx, dy, dw, dh);
+        cx.globalCompositeOperation = 'color'; cx.fillStyle = 'rgba(46,242,192,.14)'; cx.fillRect(dx, dy, dw, dh);
         cx.globalCompositeOperation = 'source-over';
         // a scan line sweeping down the picture
         const sy = dy + ((T * 0.45) % 1) * dh;

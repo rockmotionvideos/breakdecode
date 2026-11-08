@@ -41,12 +41,12 @@
     return visionP;
   }
 
-  async function makeLandmarker(vis, name) {
+  async function makeLandmarker(vis, name, video) {
     // IMAGE mode: every picture is looked at fresh, with no memory of the last one. That matters upside down,
     // because the tracking mode tends to keep believing the dancer is still the right way up.
     const make = (delegate, nm) => vis.mod.PoseLandmarker.createFromOptions(vis.fileset, {
       baseOptions: { modelAssetPath: MODEL(nm), delegate },
-      runningMode: "IMAGE", numPoses: 1,
+      runningMode: video ? "VIDEO" : "IMAGE", numPoses: 1,
       minPoseDetectionConfidence: 0.35, minPosePresenceConfidence: 0.35, minTrackingConfidence: 0.35,
     });
     try { return { lm: await make("GPU", name), delegate: "GPU", model: name }; }
@@ -117,6 +117,7 @@
   const PAIRS = { all: ["shoulder", "elbow", "wrist", "hip", "knee", "ankle", "heel"], arms: ["shoulder", "elbow", "wrist"], legs: ["hip", "knee", "ankle", "heel"] };
   function fixLeftRight(data) {
     const J = data.joints, n = data.times.length, ref = {}, age = {};
+    let tor = 0;
     const get = (nm, i) => { const d = J[nm]; return Number.isFinite(d.x[i]) ? [d.x[i], d.y[i]] : null; };
     const swapAt = (grp, i) => {
       for (const k of PAIRS[grp]) {
@@ -135,8 +136,10 @@
           swap += Math.hypot(L[0] - rr[0], L[1] - rr[1]) + Math.hypot(R[0] - rl[0], R[1] - rl[1]);
           used++;
         }
-        if (used >= (grp === "all" ? 4 : 2) && same > 8 && swap < 0.6 * same) { swapAt(grp, i); swaps++; }
+        if (used >= (grp === "all" ? 4 : 2) && tor > 0 && same / (2 * used) > 0.3 * tor && swap < 0.45 * same) { swapAt(grp, i); swaps++; }
       }
+      const a1 = get("left_shoulder", i), a2 = get("right_shoulder", i), b1 = get("left_hip", i), b2 = get("right_hip", i);
+      if (a1 && a2 && b1 && b2) { const d = Math.hypot((a1[0] + a2[0]) / 2 - (b1[0] + b2[0]) / 2, (a1[1] + a2[1]) / 2 - (b1[1] + b2[1]) / 2); tor = tor ? tor * 0.95 + d * 0.05 : d; }
       for (const nm of Object.keys(J)) {
         const p = get(nm, i);
         if (p) { ref[nm] = p; age[nm] = 0; } else age[nm] = (age[nm] == null ? 99 : age[nm] + 1);
@@ -148,7 +151,7 @@
   // Start downloading the model quietly while the person is still on the menu, so the first scan isn't slow.
   function warmup(model) {
     if (window.BD_STUB) return;
-    loadVision().then(() => fetch(MODEL(model || "heavy")).catch(() => { })).catch(() => { });
+    loadVision().then(() => fetch(MODEL(model || "full")).catch(() => { })).catch(() => { });
   }
 
   // Scan a video file. opts: { model: "lite"|"full", preview: <canvas>, onProgress(fraction, text, secondsLeft), cancelled() }
@@ -158,11 +161,11 @@
     opts = opts || {};
     const say = (f, t, e) => opts.onProgress && opts.onProgress(f, t, e);
     const stub = window.BD_STUB || null;       // a test hook: pose numbers supplied by a test instead of the model
-    let lm = null, delegate = "stub", usedModel = opts.model || "heavy";
+    let lm = null, delegate = "stub", usedModel = opts.model || "full";
     if (!stub) {
       say(0.01, "Getting the model ready (first time takes a moment)...");
       const made = window.BD_FAKELM ? { lm: window.BD_FAKELM, delegate: "fake", model: "fake" }   // a test hook
-        : await makeLandmarker(await loadVision(), opts.model || "heavy");
+        : await makeLandmarker(await loadVision(), opts.simple ? (opts.model === "lite" ? "lite" : "full") : (opts.model || "full"), !!opts.simple);
       lm = made.lm; delegate = made.delegate; usedModel = made.model;
     }
     const f = Math.max(1, +opts.slow || 1);   // 1 = normal video. 4 or 8 = slow motion that plays 4x or 8x slower than real life
@@ -199,7 +202,8 @@
         const l = out && out.landmarks && out.landmarks[0];
         return l ? mapBack(l, r, rt, cw, ch) : null;
       };
-      const findPerson = () => {
+      const findPerson = (mt) => {
+        if (opts.simple) { const o = lm.detectForVideo(frame, Math.round(mt * 1000) + 1); return o && o.landmarks && o.landmarks[0] || null; }   // the plain, proven way: whole picture, with tracking
         if (!cropOk) { const o = lm.detect(frame); return o && o.landmarks && o.landmarks[0] || null; }
         try {
           const r = rect || FULL;
@@ -233,7 +237,7 @@
           let pts = null;
           if (stub) pts = stub(mt / f);
           else {
-            pts = findPerson();
+            pts = findPerson(mt);
           }
           const ms = performance.now() - a; ema = count ? ema * 0.85 + ms * 0.15 : ms; count++;
           got.push({ t: mt / f, pts });
@@ -289,6 +293,8 @@
         for (const name of Object.keys(LM)) { const q = g && g[LM[name]]; put(name, q || null, q ? (q.visibility == null ? 1 : q.visibility) : NaN); }
       }
       data.swapsFixed = fixLeftRight(data);
+      data.foundRate = data.found.reduce((a, b) => a + b, 0) / data.found.length;
+      data.simple = !!opts.simple;
       data.thumb = thumb;
       data.seconds = (performance.now() - t0) / 1000;
       data.msPerFrame = Math.round(ema);
