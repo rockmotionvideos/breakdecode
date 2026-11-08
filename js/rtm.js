@@ -8,13 +8,14 @@
   const ORT_BASE = "https://cdn.jsdelivr.net/npm/onnxruntime-web@" + ORT_VER + "/dist/";
   const MEAN = [123.675, 116.28, 103.53], STD = [58.395, 57.12, 57.375];
 
-  let manP = null, loadP = null, st = null;
+  let manP = {}, loadP = {}, st = null;
 
-  function manifest() {
-    if (manP) return manP;
-    manP = fetch("models/manifest.json", { cache: "no-cache" }).then(r => { if (!r.ok) throw new Error("The Pro models are not installed."); return r.json(); });
-    manP.catch(() => { manP = null; });
-    return manP;
+  function manifest(file) {
+    file = file || "manifest.json";
+    if (manP[file]) return manP[file];
+    manP[file] = fetch("models/" + file, { cache: "no-cache" }).then(r => { if (!r.ok) throw new Error("The Pro models are not installed."); return r.json(); });
+    manP[file].catch(() => { delete manP[file]; });
+    return manP[file];
   }
   // is the Pro engine installed? resolves to the manifest, or null
   async function probe() { try { return await manifest(); } catch (e) { return null; } }
@@ -38,35 +39,69 @@
     return all;
   }
 
-  // Loads the engine once. onProgress(0..1) while the model downloads (only slow the very first time).
-  function load(onProgress) {
-    if (loadP) return loadP;
-    loadP = (async () => {
-      const m = await manifest();
-      if (typeof ort === "undefined") await loadScript(ORT_BASE + "ort.all.min.js");
-      ort.env.wasm.wasmPaths = ORT_BASE;
-      ort.env.wasm.simd = true;
-      ort.env.wasm.numThreads = (self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 2) : 1);
-      const bytes = await fetchModel(m, onProgress);
-      const IW = m.inputW || 192, IH = m.inputH || 256, K = m.keypoints || 26;
-      const tc = document.createElement("canvas"); tc.width = IW; tc.height = IH;
-      const tx = tc.getContext("2d", { willReadFrequently: true });
-      let sess = null, provider = "wasm";
-      const tryMake = async eps => ort.InferenceSession.create(bytes, { executionProviders: eps, graphOptimizationLevel: "all" });
-      const dummy = () => new ort.Tensor("float32", new Float32Array(3 * IH * IW), [1, 3, IH, IW]);
-      for (const eps of [["webgpu"], ["wasm"]]) {
-        try {
-          const s = await tryMake(eps);
-          await s.run({ [s.inputNames[0]]: dummy() });   // a test run, so a broken graphics path is caught now and not in the middle of a scan
-          sess = s; provider = eps[0]; break;
-        } catch (e) { sess = null; }
+  // Build a working session from one model (tries the graphics chip first, then the processor).
+  async function makeState(m, progress) {
+    if (typeof ort === "undefined") await loadScript(ORT_BASE + "ort.all.min.js");
+    ort.env.wasm.wasmPaths = ORT_BASE;
+    ort.env.wasm.simd = true;
+    ort.env.wasm.numThreads = (self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 2) : 1);
+    const bytes = await fetchModel(m, progress);
+    const IW = m.inputW || 192, IH = m.inputH || 256, K = m.keypoints || 26;
+    const tc = document.createElement("canvas"); tc.width = IW; tc.height = IH;
+    const tx = tc.getContext("2d", { willReadFrequently: true });
+    const dummy = () => new ort.Tensor("float32", new Float32Array(3 * IH * IW), [1, 3, IH, IW]);
+    for (const eps of [["webgpu"], ["wasm"]]) {
+      try {
+        const s = await ort.InferenceSession.create(bytes, { executionProviders: eps, graphOptimizationLevel: "all" });
+        await s.run({ [s.inputNames[0]]: dummy() });   // a test run, so a broken graphics path is caught now and not in the middle of a scan
+        return { sess: s, IW, IH, K, tc, tx, provider: eps[0], name: m.name || "rtmpose", inName: s.inputNames[0], ox: s.outputNames[0], oy: s.outputNames[1], dummy };
+      } catch (e) { /* try the next way */ }
+    }
+    throw new Error("The Pro engine could not start on this phone.");
+  }
+  // how many milliseconds one look takes on this phone
+  async function bench(s) {
+    const t = [];
+    for (let i = 0; i < 4; i++) { const a = performance.now(); await s.sess.run({ [s.inName]: s.dummy() }); t.push(performance.now() - a); }
+    t.sort((a, b) => a - b); return t[1];
+  }
+  function release(s) { try { if (s && s.sess && s.sess.release) s.sess.release(); } catch (e) { } }
+  const lsg = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lss = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
+
+  // Loads the engine once. pref: "auto" (the best model this phone can run quickly) or "small" (always the small one).
+  // The big model (if installed) is only downloaded on a phone that is fast enough, and the choice is remembered.
+  function load(onProgress, pref) {
+    pref = pref || "auto";
+    if (loadP[pref]) return loadP[pref];
+    loadP[pref] = (async () => {
+      const mS = await manifest();
+      let mL = null;
+      const net = navigator.connection, metered = !!(net && (net.saveData || net.type === "cellular" || /(^|-)(2g|3g)$/.test(net.effectiveType || "")));
+      if (pref === "auto" && !metered) { try { mL = await manifest("manifest-l.json"); } catch (e) { mL = null; } }   // no big download on mobile data
+      const choice = lsg("bd_rtm_choice");
+      if (mL && choice === "l") {
+        try { st = await makeState(mL, onProgress); return st; } catch (e) { lss("bd_rtm_choice", "m"); }
       }
-      if (!sess) throw new Error("The Pro engine could not start on this phone.");
-      st = { sess, IW, IH, K, tc, tx, provider, name: m.name || "rtmpose", inName: sess.inputNames[0], ox: sess.outputNames[0], oy: sess.outputNames[1] };
-      return st;
+      const small = await makeState(mS, onProgress);
+      if (mL && choice !== "m") {
+        let pick = "m";
+        try {
+          const ms = await bench(small);
+          if (ms <= 70) {                       // a fast phone: try the big model, and keep it only if it is quick enough too
+            const big = await makeState(mL, p => onProgress && onProgress(p));
+            const mb = await bench(big);
+            if (mb <= 170) { pick = "l"; release(small); st = big; }
+            else release(big);
+          }
+        } catch (e) { pick = "m"; }
+        lss("bd_rtm_choice", pick);
+        if (pick === "l") return st;
+      }
+      st = small; return st;
     })();
-    loadP.catch(() => { loadP = null; });
-    return loadP;
+    loadP[pref].catch(() => { delete loadP[pref]; });
+    return loadP[pref];
   }
 
   // Turn the crop into the numbers the model wants. box = {x0,y0,x1,y1} in pixels of `src`.

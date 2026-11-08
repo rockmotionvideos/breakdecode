@@ -175,7 +175,7 @@
       try {   // the Pro engine (RTMPose), if its model files have been installed
         if (await BDRtm.probe()) {
           say(0.01, "Getting the Pro engine ready (the first time it downloads its model)...");
-          rtm = await BDRtm.load(p => say(0.01 + 0.04 * p, "Downloading the Pro model..."));
+          rtm = await BDRtm.load(p => say(0.01 + 0.04 * p, "Downloading the Pro model..."), opts.engine === "small" ? "small" : "auto");
           delegate = rtm.provider; usedModel = rtm.name;
         }
       } catch (e) { rtm = null; }
@@ -200,7 +200,7 @@
       if (!isFinite(dur) || dur <= 0) throw new Error("I couldn't read how long that video is.");
       const realDur = dur / f;                   // how long the move really took, in real life
       if (realDur > MAX_SECONDS + 0.5) throw new Error("That video is about " + Math.round(realDur) + " seconds" + (f > 1 ? " in real time" : "") + ". The limit is " + MAX_SECONDS + " seconds. Please trim it and try again." + (f === 1 ? " If it's a slow-motion video, choose slow motion before scanning." : ""));
-      const w = video.videoWidth, h = video.videoHeight, sc = Math.min(1, MAX_SIDE / Math.max(w, h));
+      const w = video.videoWidth, h = video.videoHeight, sc = Math.min(1, (rtm ? 1024 : MAX_SIDE) / Math.max(w, h));   // the Pro engine keeps more detail, so small dancers stay sharp
       const cw = Math.max(2, Math.round(w * sc)), ch = Math.max(2, Math.round(h * sc));
       const frame = document.createElement("canvas"); frame.width = cw; frame.height = ch;
       const fx = frame.getContext("2d");

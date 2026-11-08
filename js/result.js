@@ -17,7 +17,8 @@ const BONES = [["left_shoulder","right_shoulder"],["left_hip","right_hip"],["lef
   ["left_shoulder","left_elbow"],["left_elbow","left_wrist"],["right_shoulder","right_elbow"],["right_elbow","right_wrist"],
   ["left_hip","left_knee"],["left_knee","left_ankle"],["left_ankle","left_heel"],
   ["right_hip","right_knee"],["right_knee","right_ankle"],["right_ankle","right_heel"]];
-const W = cv.width, H = cv.height, PAD = 130;
+const SS = 1.5; cv.width = 760 * SS; cv.height = 560 * SS;   // drawn at 1.5x so the lines stay crisp on a phone screen
+const W = 760, H = 560, PAD = 105;
 const [bx0, by0, bx1, by1] = R.box;
 const sc = Math.min((W - 2*PAD) / Math.max(bx1 - bx0, 1), (H - 2*PAD) / Math.max(by1 - by0, 1));
 const ox = (W - sc * (bx1 - bx0)) / 2 - sc * bx0, oy = (H - sc * (by1 - by0)) / 2 - sc * by0 + 10;
@@ -38,6 +39,7 @@ function line(A, B, glow, core) {
   cx.strokeStyle = 'rgba(225,255,248,.85)'; cx.lineWidth = Math.max(1, core / 3); cx.stroke();
 }
 function draw(fi, u = 0) {
+  cx.setTransform(SS, 0, 0, SS, 0, 0);
   cx.clearRect(0, 0, W, H);
   const fy = R.floor * sc + oy;
   const g = cx.createLinearGradient(0, fy, W, fy);
@@ -188,7 +190,7 @@ if (N > 1) requestAnimationFrame(tick);
   <div class="pills rise" style="--d:.1s">${chips}</div>
   <div class="player rise" style="--d:.15s">
     <div class="prings"></div><div class="scan"></div>
-    <canvas id="cv" width="760" height="760"></canvas>
+    <canvas id="cv" width="760" height="560"></canvas>
     <span class="corner c1"></span><span class="corner c2"></span><span class="corner c3"></span><span class="corner c4"></span>
     <div class="hud-top"><span>// YOUR FLARE, SCANNED</span><span class="rec"><i></i>REPLAY</span></div>
     <div class="hud-bot"><div id="clock">00:00.0</div><div class="track"><i id="prog"></i></div></div>
