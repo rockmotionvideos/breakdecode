@@ -304,10 +304,13 @@
       css: ".pv{display:block;width:100%;max-height:46vh;object-fit:contain;border-radius:18px;margin-top:16px;background:#0a0f12;border:1px solid rgba(255,255,255,.08)}",
       html: "<div class='mono'>SCANNING</div><h1>Reading your <em>flare.</em></h1>" +
         "<div class='card' style='text-align:center'><div id='pct' style=\"font:700 64px 'Space Grotesk',sans-serif;background:linear-gradient(90deg,var(--mint),var(--cyan),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent\">0%</div>" +
-        "<div class='track'><i id='fill'></i></div><p id='step' style='margin-top:14px'>Starting...</p><p class='small' id='eta'></p><canvas class='pv' id='pv' width='320' height='180'></canvas></div>" +
+        "<div class='track'><i id='fill'></i></div><p id='look' style='margin:14px 0 0;font-weight:600;color:var(--mint)'></p><p id='step' class='small' style='margin-top:8px'>Starting...</p><p class='small' id='eta'></p><canvas class='pv' id='pv' width='320' height='180'></canvas></div>" +
         "<p class='small'>Keep this screen open. Your video stays on your phone.</p><button type='button' class='btn ghost' id='cancel'>Cancel</button>",
       async init() {
         $("#cancel").onclick = () => { cancelled = true; location.hash = "#/start"; };
+        const LOOKS = ["Scanning your legs...", "Finding your hands and where they land...", "Watching your hips...", "Following your head and shoulders...", "Checking how wide your legs open...", "Counting your rounds...", "Checking your speed and rhythm...", "Looking at your balance..."];
+        let li = 0; const lk = $("#look"); lk.textContent = LOOKS[0];
+        const lt = setInterval(() => { const el = document.getElementById("look"); if (!el) { clearInterval(lt); return; } li = (li + 1) % LOOKS.length; el.textContent = LOOKS[li]; }, 2300);
         const setP = (p, step, eta) => {
           if (cancelled) return; p = Math.min(100, p);
           $("#pct").textContent = Math.floor(p) + "%"; $("#fill").style.width = p + "%"; if (step) $("#step").textContent = step;
@@ -465,6 +468,23 @@
     $("#hdone", el).onclick = () => el.remove();
   }
 
+  function exercisesScreen(focus) {
+    const X = window.BD_EXERCISES || {};
+    const card = ex => {
+      let media = "";
+      if (ex.video) media = /^https?:/.test(ex.video) ? "<a class='btn' style='margin:12px 0 0' target='_blank' rel='noopener' href='" + E(ex.video) + "'>Watch the video</a>" : "<video controls playsinline preload='metadata' style='width:100%;border-radius:14px;margin-top:12px' src='" + E(ex.video) + "'></video>";
+      return "<div class='card'><h2>" + E(ex.title || "") + "</h2><p>" + E(ex.text || "") + "</p>" + media + "</div>";
+    };
+    const sec = (key, title) => {
+      const list = X[key] || [];
+      return "<h3 class='lh' id='ex-" + key + "'>" + title + "</h3>" + (list.length ? list.map(card).join("") : "<div class='card'><p class='small' style='margin:0'>Exercises for this are coming soon.</p></div>");
+    };
+    return {
+      html: "<a class='back' href='javascript:history.back()'>&larr; Back</a><div class='mono'>EXERCISES</div><h1>Train <em>it.</em></h1>" + sec("flare", "For your flares") + sec("windmill", "Windmill basics"),
+      init() { if (focus) { const el = document.getElementById("ex-" + focus); if (el) el.scrollIntoView(); } }
+    };
+  }
+
   function settingsScreen() {
     const installCard = isStandalone() ? "" :
       "<div class='card'><h2>Put it on your phone</h2><p>Add BreakDecode to your home screen so it opens like a normal app.</p><button type='button' class='btn ghost' id='inst'>Add to Home Screen</button></div>";
@@ -542,6 +562,7 @@
       else if (seg[0] === "results") s = await resultsScreen(q);
       else if (seg[0] === "share") s = await shareScreen();
       else if (seg[0] === "settings") s = settingsScreen();
+      else if (seg[0] === "exercises") s = exercisesScreen(seg[1]);
       else s = { redirect: "#/" };
     } catch (e) {
       console.error(e);

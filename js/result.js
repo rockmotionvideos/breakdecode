@@ -67,10 +67,6 @@ function draw(fi, u = 0) {
     const q = P(p);
     cx.beginPath(); cx.arc(q[0], q[1], 4.5, 0, 7); cx.fillStyle = '#fff'; cx.fill();
   }
-  if (R.lost[fi]) {
-    cx.font = "22px 'Space Mono', monospace"; cx.textAlign = 'center';
-    cx.fillStyle = 'rgba(255,122,89,.95)'; cx.fillText('// TRACKING LOST', W / 2, H / 2);
-  }
 }
 let t0 = null;
 function tick(ts) {
@@ -118,7 +114,6 @@ if (N > 1) requestAnimationFrame(tick);
       badge = '<span class="check"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#04120e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>SCAN COMPLETE';
       h1 = "Flare<br>scan <em>success</em>";
       live = '<span class="live"><i></i>ANALYSIS DONE</span>';
-      if (track === "caution") notice = `<div class="notice rise" style="--d:.25s"><b>HEADS UP</b>${E(res.cautionText)}</div>`;
       if (problems.length) {
         focus = `
     <div class="head rise" style="--d:.3s"><span class="idx">01</span><span class="label">COACH'S REMARK</span></div>
@@ -156,8 +151,11 @@ if (N > 1) requestAnimationFrame(tick);
   <section class="rise" style="--d:.45s">
     <div class="head"><span class="idx">02</span><span class="label">WHAT I SAW</span></div>
     <div class="grid">${tiles}</div>
+  </section>
+  <section class="rise" style="--d:.5s">
+    <a href="#" onclick="parent.location.hash='#/exercises';return false" class="exlink"><span class="exic">&#9654;</span><span><b>EXERCISES TO HELP</b><br>Drills and videos to fix what I saw</span><span class="exar">&rarr;</span></a>
   </section>`;
-      const nxt = res.tips.map(t => `<div class="next${"?!".includes(t.badge) ? " ask" : ""}"><div class="nn">${E(t.badge)}</div><h4>${E(t.title)}</h4><p>${E(t.text)}</p></div>`).join("");
+      const nxt = res.tips.map(t => { const wm = /WINDMILL/i.test(t.title); return `<div class="next${"?!".includes(t.badge) ? " ask" : ""}"${wm ? ` onclick="parent.location.hash='#/exercises/windmill'" style="cursor:pointer"` : ""}><div class="nn">${E(t.badge)}</div><h4>${E(t.title)}</h4><p>${E(t.text)}</p>${wm ? `<div class="go">SEE WINDMILL EXERCISES &rarr;</div>` : ""}</div>`; }).join("");
       tipsSec = `
   <section class="rise" style="--d:.65s">
     <div class="head"><span class="idx">04</span><span class="label">FOR EVERY FLARE</span><span class="swipe">SWIPE →</span></div>
@@ -165,7 +163,7 @@ if (N > 1) requestAnimationFrame(tick);
   </section>`;
     }
     const tracking = { ok: "CLEAN", caution: "PARTIAL", refuse: "POOR" }[track];
-    const chips = `<span class="pill"><i></i>TRACKING <b>${tracking}</b></span>`;
+    const chips = "";
     const replayJSON = JSON.stringify(res.replay).replace(/<\//g, "<\\/");
     const script = REPLAY_SCRIPT.replace("__REPLAY__", () => replayJSON);
     const nav = `<div style="position:fixed;left:14px;right:14px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:99;display:flex;gap:10px;padding:8px;border-radius:24px;background:rgba(7,9,10,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.12);box-shadow:0 14px 40px rgba(0,0,0,.5);font-family:system-ui,sans-serif">
@@ -177,7 +175,8 @@ if (N > 1) requestAnimationFrame(tick);
 <meta name="color-scheme" content="dark">
 <title>Flare feedback</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<style>${window.BD_CSS.feedback}</style></head>
+<style>${window.BD_CSS.feedback}
+.exlink{display:flex;align-items:center;gap:14px;padding:16px;border-radius:22px;text-decoration:none;color:var(--text);background:linear-gradient(150deg,rgba(46,242,192,.14),rgba(255,255,255,.03) 65%);border:1px solid rgba(46,242,192,.35);font-size:14px;line-height:1.4;color:#b7c3c0}.exlink b{font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.16em;color:var(--text)}.exic{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,var(--mint),var(--cyan));color:#04120e;font-size:14px}.exar{margin-left:auto;color:var(--mint);font-size:20px}.next .go{margin-top:14px;font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.14em;color:var(--cyan)}</style></head>
 <body>
 <div class="bg"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i><div class="grid-bg"></div><div class="grain"></div></div>
 <main class="phone">
