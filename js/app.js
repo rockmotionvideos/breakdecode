@@ -308,7 +308,7 @@
         "<p class='small'>Keep this screen open. Your video stays on your phone.</p><button type='button' class='btn ghost' id='cancel'>Cancel</button>",
       async init() {
         $("#cancel").onclick = () => { cancelled = true; location.hash = "#/start"; };
-        const LOOKS = ["Scanning your legs...", "Finding your hands...", "Watching your hips...", "Counting your rounds..."];
+        const LOOKS = ["Scanning your legs...", "Finding your hands...", "Watching your hips...", "Checking your balance..."];
         let li = 0; const lk = $("#look"); lk.textContent = LOOKS[0];
         const lt = setInterval(() => { const el = document.getElementById("look"); if (!el) { clearInterval(lt); return; } li = (li + 1) % LOOKS.length; el.textContent = LOOKS[li]; }, 5200);
         const setP = (p, step, eta) => {
