@@ -155,11 +155,40 @@
       el = document.createElement("div"); el.className = "gate"; el.id = "gate"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true");
       el.innerHTML = "<div class='gbox'><button class='gclose' id='gclose' hidden aria-label='Close'>&times;</button><div class='mono'>BEFORE YOU START</div><div class='gdots'>" + RULES.map(() => "<i></i>").join("") + "</div>" +
         RULES.map(r => "<div class='gstep' hidden><div class='gicon'>" + r[0] + "</div><h2>" + r[1] + "</h2><p>" + r[2] + "</p></div>").join("") +
-        "<button class='btn' id='gnext' disabled>Next</button></div>";
+        "<button class='btn' id='gnext' disabled>Next</button>" +
+        "<div class='grow2' style='display:flex;gap:10px;margin-top:10px'><button type='button' class='btn ghost' id='glisten' style='margin:0;flex:1' hidden>Listen</button><button type='button' class='btn ghost' id='gskip' style='margin:0;flex:1'>Skip</button></div></div>";
       document.body.appendChild(el);
       st = $$(".gstep", el); dots = $$(".gdots i", el); nx = $("#gnext", el); cl = $("#gclose", el);
-      nx.addEventListener("click", () => { if (i < st.length - 1) { i++; show(); } else { if (!replay) lsSet(KEY, "yes"); close(); } });
+      nx.addEventListener("click", () => { stopSpeech(); if (i < st.length - 1) { i++; show(); } else { if (!replay) lsSet(KEY, "yes"); close(); } });
       cl.addEventListener("click", close);
+      $("#gskip", el).addEventListener("click", () => { if (!replay) lsSet(KEY, "yes"); close(); });
+      const ls = $("#glisten", el), tts = window.speechSynthesis;
+      if (tts && window.SpeechSynthesisUtterance) {
+        ls.hidden = false;
+        ls.addEventListener("click", () => { if (speaking) { stopSpeech(); } else { speakFrom(i); } });
+      }
+    }
+    // read the instructions out loud with the phone's own voice (nothing is sent anywhere)
+    let speaking = false, token = 0;
+    function pickVoice() {
+      const vs = window.speechSynthesis.getVoices() || [], en = vs.filter(v => /^en/i.test(v.lang));
+      return en.find(v => /en-AU/i.test(v.lang)) || en.find(v => /natural|enhanced|premium|neural/i.test(v.name)) || en.find(v => /en-(GB|US)/i.test(v.lang)) || en[0] || null;
+    }
+    function setListen() { const b = $("#glisten", el); if (b) b.textContent = speaking ? "Stop listening" : "Listen"; }
+    function stopSpeech() { token++; speaking = false; try { window.speechSynthesis.cancel(); } catch (e) { } setListen(); }
+    function speakFrom(k) {
+      const my = ++token; try { window.speechSynthesis.cancel(); } catch (e) { }
+      speaking = true; setListen(); i = k; show();
+      const say = () => {
+        if (my !== token) return;
+        const r = RULES[i], u = new SpeechSynthesisUtterance((r[1] + ". " + String(r[2]).replace(/<[^>]*>/g, " ")).replace(/&amp;/g, "and"));
+        const v = pickVoice(); if (v) { u.voice = v; u.lang = v.lang; } else u.lang = "en-AU";
+        u.rate = 0.95;
+        u.onend = () => { if (my !== token) return; if (i < st.length - 1) { i++; show(); setTimeout(say, 500); } else { speaking = false; setListen(); } };
+        u.onerror = () => { if (my === token) { speaking = false; setListen(); } };
+        window.speechSynthesis.speak(u);
+      };
+      say();
     }
     function show() {
       st.forEach((x, k) => { x.hidden = k !== i; x.className = "gstep"; if (k === i) { void x.offsetWidth; x.className = "gstep in"; } });
@@ -170,7 +199,7 @@
       nx.disabled = true; nx.textContent = label + " (" + s + ")";
       t = setInterval(() => { s--; if (s <= 0) { clearInterval(t); nx.disabled = false; nx.textContent = label; } else nx.textContent = label + " (" + s + ")"; }, 1000);
     }
-    function close() { clearInterval(t); el.className = "gate"; document.body.style.overflow = ""; }
+    function close() { stopSpeech(); clearInterval(t); el.className = "gate"; document.body.style.overflow = ""; }
     function open(r) { if (!el) build(); replay = !!r; i = 0; cl.hidden = !replay; document.body.style.overflow = "hidden"; el.className = "gate on"; show(); }
     return { open, seen: () => lsGet(KEY, "") === "yes" };
   })();

@@ -13,7 +13,8 @@ window.BD_EXERCISES = {
   drop:   [ ],
   start:  [ ],
   onward: [ ],
+  hands:  [ ],
   windmill: [ ]
 };
 // The names shown on the page (you can change the words here)
-window.BD_EXERCISE_NAMES = { kick: "Kick", legs: "Legs open", lift: "Hip height", flip: "Upside down", drop: "Hips between flares", start: "Start", onward: "Second round", windmill: "Windmill basics" };
+window.BD_EXERCISE_NAMES = { kick: "Kick", legs: "Legs open", lift: "Hip height", flip: "Upside down", drop: "Hips between flares", start: "Start", onward: "Second round", hands: "Hands at the start", windmill: "Windmill basics" };

@@ -104,7 +104,7 @@ if (R.video) {
       cx.beginPath(); cx.arc(q[0], q[1], 2.6, 0, 7); cx.fillStyle = '#fff'; cx.fill();
     }
   }
-  VID.addEventListener('error', () => { VID = null; });
+  VID.addEventListener('error', () => { VID = null; const pl = document.querySelector('.player'); if (pl) pl.style.display = 'none'; });
   VID.addEventListener('loadeddata', () => { VID.currentTime = mt0; VID.play().catch(() => { }); vdraw = true; });
   function vtick() {
     if (!VID) return false;
@@ -121,7 +121,8 @@ if (R.video) {
 }
 let t0 = null;
 function tick(ts) {
-  if (window.__vtick && VID && window.__vtick()) { requestAnimationFrame(tick); return; }
+  if (window.__vtick) window.__vtick();
+  requestAnimationFrame(tick); return;
   if (t0 === null) t0 = ts;
   const t = ((ts - t0) / 1000) % (total + HOLD);
   const tc = Math.min(t, total - 0.0001);
@@ -132,7 +133,7 @@ function tick(ts) {
   prog.style.width = (Math.min(t, total) / total * 100) + '%';
   requestAnimationFrame(tick);
 }
-if (N > 1) requestAnimationFrame(tick);
+if (N > 1 && R.video) requestAnimationFrame(tick);
 `;
 
   function build(res) {
@@ -196,7 +197,7 @@ if (N > 1) requestAnimationFrame(tick);
       <div class="rings"></div>
       <div class="tag"><i></i>LOOKING GOOD</div>
       <h2>CLEAN FLARES</h2>
-      <p>Nice flares. I can't see anything clearly wrong here. Keep practising, repetition is the next step.</p>
+      <p>Nice flares. I can't see anything clearly wrong here. Keep practising, repetition is the next step.</p>${res.fewRounds ? `<div class="why"><div class="wl">// NEXT LEVEL</div><p>The more rounds you stack in a row, the higher, fresher and cleaner every flare gets, and even your first few start to look better. Aim for 10. If you can't get there yet, push one more round each time and it will come.</p></div>` : ""}
     </section>`;
       }
       checks = `
@@ -211,6 +212,7 @@ if (N > 1) requestAnimationFrame(tick);
     <div class="nexts">${nxt}</div>
   </section>`;
     }
+    const hasVid = !!(res.videoURL && res.vw && res.vh);
     const tracking = { ok: "CLEAN", caution: "PARTIAL", refuse: "POOR" }[track];
     const chips = "";
     const replayJSON = JSON.stringify(Object.assign({}, res.replay, res.videoURL && res.vw && res.vh ? { video: res.videoURL, vw: res.vw, vh: res.vh, slow: res.slow || 1 } : {})).replace(/<\//g, "<\\/");
@@ -236,14 +238,13 @@ if (N > 1) requestAnimationFrame(tick);
   <div class="success rise">${badge}</div>
   <h1 class="rise" style="--d:.05s">${h1}</h1>
   <div class="pills rise" style="--d:.1s">${chips}</div>
-  <div class="player rise" style="--d:.15s">
+  ${hasVid ? `  <div class="player rise" style="--d:.15s">
     <div class="prings"></div><div class="scan"></div>
     <canvas id="cv" width="760" height="560"></canvas>
     <span class="corner c1"></span><span class="corner c2"></span><span class="corner c3"></span><span class="corner c4"></span>
     <div class="hud-top"><span>// YOUR FLARE, SCANNED</span><span class="rec"><i></i>REPLAY</span></div>
     <div class="hud-bot"><div id="clock">00:00.0</div><div class="track"><i id="prog"></i></div></div>
-  </div>
-  <p class="sub rise" style="--d:.2s">Looked at <b>${E(res.seen)}</b> · where you are on the floor</p>
+  </div>` : ""}
   ${notice}
   ${focus}
   ${checks}

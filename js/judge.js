@@ -46,27 +46,35 @@
     lift: "Your hips don't get high enough.",
     flip: "Your body doesn't get upside down, so the flare doesn't come around.",
     drop: "Your knees almost touch the ground after the first flare, on the way into the second one.",
+    hands: "You start with both hands on the floor.",
     onward: "You stop after part of one round.",
   };
   const FIX = {
-    onward: "Don't stop. Keep going, first with your knees tucked, sliding through the second and third round. As it feels comfortable, your legs will rise higher behind you, like a planche from the back, until you don't need to slide at all.",
+    hands: "Open your legs and use one hand to lift your body up into the flare, instead of putting both hands on the floor first.",
+    onward: "Don't stop. Even if you slide through it, aim for 2 flares. Open your legs as wide as you can at the start and push the strongest momentum you can, because the more momentum you start with, the more flares you can do. Keep going with your knees tucked at first, and as it feels comfortable your legs will rise higher behind you, like a planche from the back, until you don't need to slide at all.",
     start: "Open your legs wider before the first round.",
     legs: "Open your legs wider, and a bit toward the front, before you start, and keep them open through the flare.",
-    kick: "Kick your legs out to the sides. Kick each leg toward your head as you swing, and the other leg comes up with it, so your hips stay up.",
+    kick: "Open your legs a bit more at the start, then send one leg up first, the back leg, and let the front leg follow right after it. Don't lift both together. Kick each leg toward your head as it swings, and the other leg comes up with it, so your hips stay up.",
     lift: "Bring your hands closer together so they can hold your hips up. Send your legs a bit more to the front, not straight up, or you lose momentum.",
     flip: "Push forward AND up, not just up, and kick toward your head on each side so the flare can come around.",
     drop: "Push more momentum at the start and kick with your legs. Aim to go back like a planche, and don't let your hips down.",
   };
   const PRACTICE = {
-    onward: ["Do two or three rounds with your knees tucked, even if it's messy.",
-      "Practise planche alongside it. It raises your legs higher with every session."],
+    hands: ["Practise the start on its own: legs open, one hand down, lift your body and swing into the first flare. Do it 10 times in a row.",
+      "Film your start from the front and check that only one hand touches the floor before your legs go up."],
+    onward: ["Do two or three rounds with your knees tucked, even if it's messy. Aim for 2 flares every time.",
+      "Practise the start on its own: open your legs as wide as you can, then push the strongest momentum you can into the first round.",
+      "Train planche and press handstands. They help a lot, and your legs rise higher with every session."],
     start: ["Practise the start on its own: legs wide, then swing into the first round, 10 times in a row.",
       "Look at your legs in the mirror or a video before every first round."],
     legs: ["Practise holding your legs wide in a straddle, then swing them while staying wide.",
       "Do a few slow flares and think about keeping the legs open the whole time.",
       "Think wide legs, a bit toward the front, on every round. Film a slow one from the front and check how wide they get."],
-    kick: ["Do slow flare swings and focus only on kicking each leg toward your head on each side.",
-      "Practise more planche, it keeps your body up while the legs swing."],
+    kick: ["Start with your legs open a little wider, then swing: back leg up first, front leg following it. Do it slowly, 10 times, and feel the swing build.",
+      "Do slow flare swings and focus only on kicking each leg toward your head on each side.",
+      "Treat your second flare like your first. If you kick to the sides in the first one, do exactly the same in the second. Think of every flare as the first one.",
+      "Aim for 3/4 of a flare, or one full flare, sliding through if you need to. Keep practising, film yourself each time and compare.",
+      "Practise more planche, it keeps your body up while the legs swing. A little handstand and windmill work helps too."],
     lift: ["Focus on keeping your hips up. Practise more planche and handstand holds.",
       "Keep your hands closer together and push the floor away."],
     flip: ["Practise the swing on its own first, then add the full round.",
@@ -76,10 +84,11 @@
       "Practise the part between the first and the second flare on its own: hips up, knees off the floor."],
   };
   const WHY = {
+    hands: "Both hands on the floor before you start doesn't help your momentum. One hand down lifts you into the swing, so your first flare starts with speed.",
     onward: "Each round carries momentum into the next one, so stopping after one means the next round starts from zero.",
     start: "If your legs are a bit closed at the start there is no momentum, so open them before the first round.",
     legs: "With your legs closed there is no momentum, so your hips have to do all the work to get you around. Wide legs give you the swing that carries you through the flare.",
-    kick: "That swing is what carries you around the flare.",
+    kick: "Kicking your legs to the sides, pointing toward your head, is what keeps your hips in check. When that swing is lost, your hips lose control. And when both legs go up together you don't create the momentum the flare needs to keep swinging. One leg leading and the other following is what carries you around.",
     lift: "Your hands hold your hips up. When your hands are far apart your hips drop, and sending your legs straight up loses momentum.",
     flip: "If your body doesn't get upside down, the flare can't come around.",
     drop: "When your hips come down to the floor, the momentum is gone and the next flare has to start from zero.",
@@ -88,10 +97,12 @@
     ["START WITH MOMENTUM", "Every attempt you do, make sure you start with momentum. Don't start from a dead stop."],
     ["FILM IT AGAIN", "Film yourself again after practising and compare. Small changes show up on video before you feel them."],
   ];
-  const WINDMILL_CONNECT = ["CONNECT IT WITH WINDMILLS", "Connect your flares with windmills. Going from a flare into a windmill teaches you to move your hips and makes both moves better. Once the flare works, try to do a windmill straight after it.", "!"];
-  const WINDMILL_ASK = ["DO YOU DO WINDMILLS?", "If you haven't done windmills yet, I'd recommend learning windmills before you start doing flares. It makes flares easier because you learn how to move your hips, and connecting windmills to flares makes your flares better. And if you don't know any move to do after a flare, it's even harder, so windmills are a good one to know.", "?"];
-  const WINDMILL_ONE = ["DO YOU DO WINDMILLS?", "If you do, try one round of flare and connect it into a windmill. It keeps you moving instead of stopping. If you haven't learned windmills yet, start there: they teach you how to move your hips, which makes flares easier.", "?"];
+  const WINDMILL_CONNECT = ["CONNECT IT WITH WINDMILLS", "Connect your flares with windmills. Going from a flare into a windmill teaches you to move your hips and makes both moves better. Try 2 flares into a windmill, and even 3 flares into a windmill. These drills help a lot.", "!"];
+  const WINDMILL_ASK = ["DO YOU DO WINDMILLS?", "Connect your flare into a windmill. To go into the windmill you're forced to push your hips up, at least to the same level as your head, and that's how you learn to push your hips up. Once your second flare gets better, try 2 flares into a windmill, and even 3. If you haven't done windmills yet, I'd recommend learning windmills first. It makes flares easier because you learn how to move your hips, and connecting windmills to flares makes your flares better. And if you don't know any move to do after a flare, it's even harder, so windmills are a good one to know.", "?"];
+  const WINDMILL_ONE = ["DO YOU DO WINDMILLS?", "If you do, try one round of flare and connect it into a windmill. It keeps you moving instead of stopping, and going into the windmill forces you to push your hips up, to at least the level of your head. If you haven't learned windmills yet, start there: they teach you how to move your hips, which makes flares easier.", "?"];
+  const V_TIP = ["KEEP A V, NOT AN L", "Aim to keep your body in a V shape heading toward a planche, with your hips high. Don't let your body go parallel to the ground like an L, because that turns into a different, more gymnastic style. And don't kick too hard: a very strong kick shocks the momentum, so slow the kicks down and keep working on the hips.", "2"];
   const HEADLINE = {
+    hands: "YOU START WITH BOTH HANDS ON THE FLOOR",
     onward: "YOU STOPPED AFTER ONE ROUND",
     start: "YOUR LEGS START CLOSED",
     legs: "YOUR LEGS CLOSE IN THE FLARE",
@@ -101,6 +112,7 @@
     drop: "YOUR KNEES DROP BETWEEN FLARES",
   };
   const OBSERVE = {
+    hands: "Before your first flare you put both hands on the ground and wait there. That doesn't help your momentum.",
     onward: "At about {t} seconds you put your leg down and stop. Your hips are good and your legs are open, so your body is ready for another round.",
     start: "Before your first round your legs are still closed, so there is no momentum going in.",
     legs: "During the flare your legs close in instead of staying wide.",
@@ -109,8 +121,9 @@
     flip: "Your head never goes under your hips, so the flare doesn't come all the way around.",
     drop: "After your first flare your knees almost touch the ground before you go into the second one.",
   };
-  const CHECK_NAME = { onward: "Second round", start: "Start", legs: "Legs open", kick: "Kick", lift: "Hip height", flip: "Upside down", drop: "Hips between flares" };
+  const CHECK_NAME = { hands: "Hands at the start", onward: "Second round", start: "Start", legs: "Legs open", kick: "Kick", lift: "Hip height", flip: "Upside down", drop: "Hips between flares" };
   const CHECK_DESC = {
+    hands: "One hand down to start, not both",
     onward: "You keep going into the next round",
     start: "Legs open before the first round",
     legs: "Legs wide during the flare",
@@ -119,7 +132,7 @@
     flip: "Head goes below your hips, so the flare comes around",
     drop: "Knees and hips stay off the floor between flares",
   };
-  const PRIORITY = ["onward", "start", "legs", "kick", "drop", "lift", "flip"];
+  const PRIORITY = ["hands", "onward", "start", "legs", "kick", "drop", "lift", "flip"];
 
   const JOINTS = ["head", "left_shoulder", "right_shoulder", "left_hip", "right_hip",
     "left_knee", "right_knee", "left_ankle", "right_ankle",
@@ -259,7 +272,7 @@
     return out;
   }
 
-  function analyze(data) {
+  function analyze0(data, FRONTAL) {
     const times = Float64Array.from(data.times);
     const n = times.length;
     if (n < 2) return { ok: false, reason: "noflare" };
@@ -296,7 +309,7 @@
         last = [i, X[j][i], Y[j][i]];
       }
     }
-    for (const j of JOINTS) { X[j] = fillSmooth(X[j]); Y[j] = fillSmooth(Y[j]); }
+    for (const j of JOINTS) { const gap = FRONTAL && CORE.has(j) ? 12 : 6; X[j] = fillSmooth(X[j], gap); Y[j] = fillSmooth(Y[j], gap); }   // core joints (head, shoulders, hips) may be filled across a longer blur
 
     const hpy = nan(n), headx = X.head, heady = Y.head;
     for (let i = 0; i < n; i++) hpy[i] = nanmean2(Y.left_hip[i], Y.right_hip[i]);
@@ -322,8 +335,30 @@
       const d = (lx * rx + ly * ry) / (Math.hypot(lx, ly) * Math.hypot(rx, ry) + 1e-9);
       spread[i] = Math.acos(Math.max(-1, Math.min(1, d))) * 180 / Math.PI;
     }
-    const inverted = new Array(n);
-    for (let i = 0; i < n; i++) inverted[i] = heady[i] > hpy[i] + 0.15 * TORSO;
+    // the highest foot, read with a lower confidence bar: feet blur when they swing fast, but their height is still clear
+    const footTop = nan(n);
+    for (let i = 0; i < n; i++) {
+      let m = NaN;
+      for (const k of ["left_ankle", "right_ankle", "left_heel", "right_heel"]) { const c = RAW[k].c[i], y = RAW[k].y[i]; if (!isn(c) && !isn(y) && c >= 0.12) m = isn(m) ? y : Math.min(m, y); }
+      footTop[i] = m;
+    }
+    const handLow = nan(n);   // the lowest hand, also read with a low confidence bar
+    for (let i = 0; i < n; i++) {
+      let m = NaN;
+      for (const k of ["left_wrist", "right_wrist"]) { const c = RAW[k].c[i], y = RAW[k].y[i]; if (!isn(c) && !isn(y) && c >= 0.12) m = isn(m) ? y : Math.max(m, y); }
+      handLow[i] = m;
+    }
+    const handFilled = fillSmooth(handLow, 12);
+    const footFilled = fillSmooth(footTop, 12);
+    for (let i = 0; i < n; i++) footTop[i] = footFilled[i];
+    const inverted = new Array(n), footUpA = new Float64Array(n);
+    for (let i = 0; i < n; i++) footUpA[i] = (hpy[i] - footTop[i]) / TORSO;
+    for (let i = 0; i < n; i++) {
+      // upside down = head clearly lower than the hips (filmed from the side), OR a foot swung high above the hips while the hands are on the floor
+      // (filmed low and from the front, the head can stay above the hips even in a good flare)
+      const footUp = footUpA[i];
+      inverted[i] = heady[i] > hpy[i] + 0.15 * TORSO || (FRONTAL && handFilled[i] > FLOOR - 0.3 * TORSO && footUp > 1.0);
+    }
 
     function stretches(lo, hi) {
       const st = []; let s0 = null;
@@ -334,7 +369,10 @@
       if (s0 !== null) st.push([s0, hi]);
       const out = [];
       for (const s of st) {
-        if (out.length && (s[0] - out[out.length - 1][1]) / fps <= 0.3) out[out.length - 1][1] = s[1];
+        const prev = out.length ? out[out.length - 1] : null;
+        let dip = false;   // the leg really came back down between two swings = two rounds, not one
+        if (prev && FRONTAL) for (let i = prev[1] + 1; i < s[0]; i++) if (footUpA[i] < 0.4 && !(heady[i] > hpy[i] + 0.15 * TORSO)) { dip = true; break; }
+        if (prev && !(FRONTAL && dip) && (s[0] - prev[1]) / fps <= 0.3) prev[1] = s[1];
         else out.push(s);
       }
       return out;
@@ -384,14 +422,14 @@
       if (hipHeight < MIN_HIP_HEIGHT) problems.push("lift");
       if (invertedSeconds < MIN_INVERTED_SECONDS) problems.push("flip");
       if (problems.includes("kick")) problems = problems.filter(p => p !== "lift" && p !== "flip");
-      if (["start", "legs", "lift"].some(p => problems.includes(p))) problems = problems.filter(p => p !== "drop");
+      if (["start", "legs", "lift", "kick"].some(p => problems.includes(p))) problems = problems.filter(p => p !== "drop");   // hips between flares can only be judged once the legs swing properly
       problems.sort((p, q) => PRIORITY.indexOf(p) - PRIORITY.indexOf(q));
       return { hipHeight, invertedSeconds, kick, startSpread, flareSpread, dropShare, problems };
     }
 
     const rounds = stretches(0, n - 1).filter(r => (r[1] - r[0] + 1) / fps >= 0.2);
     const windmillTip = rounds.length > MORE_THAN_ROUNDS ? WINDMILL_CONNECT : WINDMILL_ASK;
-    const TIPS_ALL = [GENERAL[0].concat("1"), windmillTip, GENERAL[1].concat("3")];
+    const TIPS_ALL = [GENERAL[0].concat("1"), windmillTip, V_TIP, GENERAL[1].concat("3")];
     const res = judge(a, b, a);
 
     // the "first round" case: part of one round with open legs, hips that don't collapse, then a leg goes down
@@ -405,9 +443,21 @@
       }
       if (!hh.some(Number.isFinite) || !foot.some(Number.isFinite) || !anyFinite(spread, a, b)) return false;
       const fm = Math.max.apply(null, foot.filter(Number.isFinite));
-      return pct(hh, 5) >= FR_MIN_HIPS_OFF_FLOOR && fm >= FR_MIN_FOOT_HEIGHT && nanmax(spread, a, b) >= FR_MIN_LEG_OPENING;
+      const sp = nanmax(spread, a, b), wideEnough = sp >= FR_MIN_LEG_OPENING || (sp >= FR_MIN_LEG_OPENING - 10 && fm >= 2.9);   // seen from the front the legs look a little less open, so allow it when a leg goes straight up
+      return pct(hh, 5) >= FR_MIN_HIPS_OFF_FLOOR && fm >= FR_MIN_FOOT_HEIGHT && wideEnough;
     }
     const FIRST_ROUND = firstRoundCase();
+    // starting wrong: both hands on the floor and waiting before the first swing. (The flares that came out fine all had no such wait.)
+    let HANDS = null;
+    {
+      let sw = -1;
+      for (let i = a; i <= b; i++) if (inverted[i] || footUpA[i] > 1.0) { sw = i; break; }
+      if (sw > a) {
+        let both = 0;
+        for (let i = a; i < sw; i++) { const m = fmin(Y.left_wrist[i], Y.right_wrist[i]); if (Number.isFinite(m) && m > FLOOR - 0.35 * TORSO) both++; }
+        HANDS = both / fps >= 0.6;
+      }
+    }
     const observe = Object.assign({}, OBSERVE);
     if (FIRST_ROUND) {
       res.problems = ["onward"];
@@ -420,6 +470,7 @@
       }
       observe.onward = OBSERVE.onward.replace("{t}", f1(times[stop] - times[0]));
     }
+    if (HANDS) { res.problems = res.problems.concat("hands"); res.problems.sort((p, q) => PRIORITY.indexOf(p) - PRIORITY.indexOf(q)); }
     const problems = res.problems;
 
     // can we trust what we saw?
@@ -445,6 +496,7 @@
 
     // status of every check: true = fine, false = needs work, null = couldn't be judged in this video
     const status = {
+      hands: HANDS === null ? null : !HANDS,
       onward: FIRST_ROUND ? false : null,
       start: res.startSpread === null ? null : res.startSpread >= MIN_START_OPENING,
       legs: res.flareSpread === null ? null : res.flareSpread >= MIN_LEG_OPENING,
@@ -556,9 +608,22 @@
       problems, observe, fix: FIX, why: WHY, headline: HEADLINE, short: SHORT, checkName: CHECK_NAME,
       tiles, drills, tips: TIPS_ALL.map(t => ({ title: t[0], text: t[1], badge: t[2] })),
       seen: f1(times[a] - times[0]) + "s to " + f1(times[b] - times[0]) + "s",
+      fewRounds: !FIRST_ROUND && rounds.length >= 1 && rounds.length <= 4,
+      roundsList: rounds.map(r => [+(times[r[0]] - times[0]).toFixed(2), +(times[r[1]] - times[0]).toFixed(2)]),
       roundsSeen: FIRST_ROUND ? "1 (PART)" : String(rounds.length),
       numbers: { hipHeight: res.hipHeight, invertedSeconds: res.invertedSeconds, kick: res.kick, startSpread: res.startSpread, flareSpread: res.flareSpread, dropShare: res.dropShare },
     };
+  }
+
+  // Normal look: a flare is upside down (head lower than the hips). Filmed low and from the front, the head can stay above the hips
+  // even in a good flare, so if that finds no rounds, look again for legs swung high with the hands on the floor, and use it only if it finds 2 or more rounds.
+  function analyze(data) {
+    const r = analyze0(data, false);
+    if (r.ok && r.roundsList.length === 0) {
+      let r2 = null; try { r2 = analyze0(data, true); } catch (e) { r2 = null; }
+      if (r2 && r2.ok && r2.roundsList.length >= 2) return r2;
+    }
+    return r;
   }
 
   const API = { analyze, FILM_TIPS, JOINTS, REPLAY_JOINTS, PRIORITY, CHECK_NAME, HEADLINE, SHORT, FIX };
