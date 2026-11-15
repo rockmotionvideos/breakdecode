@@ -3,7 +3,7 @@
 // No server. Everything is saved on this phone.
 (function () {
   "use strict";
-  const CSS = window.BD_CSS, J = window.BDJudge, POSE = window.BDPose;
+  const CSS = window.BD_CSS, J = window.BDJudge, W = window.BDWindmill, POSE = window.BDPose;
   const app = document.getElementById("app");
   const routeStyle = document.getElementById("route-css");
   const E = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -13,7 +13,7 @@
   // ---------------------------------------------------------------- words
   const MOVES = [
     { key: "flare", name: "Flare", ready: true, blurb: "Hips, legs, kick and rounds, checked with a coach's eye.", tag: "AVAILABLE" },
-    { key: "windmill", name: "Windmill", ready: false, blurb: "Not ready yet. I don't have a judge for this move, so I won't pretend to.", tag: "COMING SOON" },
+    { key: "windmill", name: "Windmill", ready: true, blurb: "Beta. I check your windmill is tracked and give coaching points to watch for. No scoring yet.", tag: "BETA" },
     { key: "airflare", name: "Airflare", ready: false, blurb: "Not ready yet. I don't have a judge for this move, so I won't pretend to.", tag: "COMING SOON" },
   ];
   const MAX_SECONDS = POSE.MAX_SECONDS;
@@ -97,7 +97,7 @@
     };
   })();
   const sortOld = scans => scans.slice().sort((a, b) => a.t - b.t);
-  const withInfo = scans => scans.filter(x => x.findings);
+  const withInfo = scans => scans.filter(x => x.findings && (x.move || "flare") === "flare");
 
   // ---------------------------------------------------------------- progress logic (what got fixed, what keeps showing up)
   function progressRows(scans) {
@@ -227,7 +227,7 @@
     if (last) {
       tl = "Today, for your " + moveName(last.move); tx = reminderText(last);
       const inf = last.findings;
-      const tag = inf ? (inf.main ? "<span class='tg bad'>" + AREA_NAME[inf.main] + "</span>" : "<span class='tg ok'>Looked good</span>") : "";
+      const tag = inf ? (sc.move === "windmill" ? "<span class='tg ok'>Windmill</span>" : inf.main ? "<span class='tg bad'>" + AREA_NAME[inf.main] + "</span>" : "<span class='tg ok'>Looked good</span>") : "";
       const img = last.thumb ? "<img class='pi' src='" + last.thumb + "' alt=''>" : "";
       shot = "<a class='gl shot' href='#/result/" + last.id + "'>" + img + "<div class='sl'>Last scan</div><h2>" + moveName(last.move) + "</h2>" + tag + "</a>";
     } else {
@@ -288,12 +288,12 @@
     }
     return {
       css: "",
-      html: "<a class='back' href='#/moves'>&larr; Moves</a><div class='mono'>FLARE SCAN</div><h1>Upload your <em>flare.</em></h1>" +
-        "<p class='lead'>A clip of " + MAX_SECONDS + " seconds or shorter with one or more flares.</p>" +
+      html: "<a class='back' href='#/moves'>&larr; Moves</a><div class='mono'>" + m.name.toUpperCase() + " SCAN</div><h1>Upload your <em>" + m.name.toLowerCase() + ".</em></h1>" +
+        "<p class='lead'>A clip of " + MAX_SECONDS + " seconds or shorter with one or more " + m.name.toLowerCase() + "s.</p>" +
         "<form id='f'><input id='file' type='file' name='video' accept='video/*' required>" +
         "<div class='seg' id='slow'><button type='button' data-f='1' class='on'>Normal speed</button><button type='button' data-f='4'>Slow-mo 120 fps</button><button type='button' data-f='8'>Slow-mo 240 fps</button></div>" +
         "<p class='small' id='slowhelp'>Filmed in slow motion? Pick it so I read the timing right. iPhone slow-mo is usually 240 fps.</p>" +
-        "<button class='btn' id='go' type='submit'>Scan my flare</button></form>" +
+        "<button class='btn' id='go' type='submit'>Scan my " + m.name.toLowerCase() + "</button></form>" +
         "<p class='small' id='msg'></p><button type='button' class='btn ghost' id='again'>View filming guidelines</button>",
       init() {
         if (!Gate.seen()) Gate.open(false);
@@ -331,7 +331,7 @@
     let cancelled = false;
     return {
       css: ".pv{display:block;width:100%;max-height:46vh;object-fit:contain;border-radius:18px;margin-top:16px;background:#0a0f12;border:1px solid rgba(255,255,255,.08)}",
-      html: "<div class='mono'>SCANNING</div><h1>Reading your <em>flare.</em></h1>" +
+      html: "<div class='mono'>SCANNING</div><h1>Reading your <em>" + (job.move === "windmill" ? "windmill" : "flare") + ".</em></h1>" +
         "<div class='card' style='text-align:center'><div id='pct' style=\"font:700 64px 'Space Grotesk',sans-serif;background:linear-gradient(90deg,var(--mint),var(--cyan),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent\">0%</div>" +
         "<div class='track'><i id='fill'></i></div><p id='look' style='margin:14px 0 0;font-weight:600;color:var(--mint)'></p><p id='step' class='small' style='margin-top:8px'>Starting...</p><p class='small' id='eta'></p><canvas class='pv' id='pv' width='320' height='180'></canvas></div>" +
         "<p class='small'>Keep this screen open. Your video stays on your phone.</p><button type='button' class='btn ghost' id='cancel'>Cancel</button>",
@@ -356,18 +356,19 @@
             data = await POSE.scanVideo(job.file, Object.assign({}, o0, { engine: "mp" }));
           }
           if (cancelled) return;
-          setP(95, "Judging your flare...", null);
+          setP(95, job.move === "windmill" ? "Looking at your windmill..." : "Judging your flare...", null);
           await new Promise(r => setTimeout(r, 30));
-          let res = J.analyze(data), dbg = "Read " + data.read + " pictures, body found in " + Math.round(data.foundRate * 100) + "% (" + data.model + ", " + data.delegate + ").";
+          const AN = job.move === "windmill" ? W.analyze : J.analyze;
+          let res = AN(data), dbg = "Read " + data.read + " pictures, body found in " + Math.round(data.foundRate * 100) + "% (" + data.model + ", " + data.delegate + ").";
           if (!res.ok || data.foundRate < 0.5) {   // not happy with that: look again the plain, proven way and keep the better answer
             setP(4, "Taking a closer look...", null);
             const d2 = await POSE.scanVideo(job.file, Object.assign({}, o0, { simple: true }));
             if (cancelled) return;
-            const r2 = J.analyze(d2);
+            const r2 = AN(d2);
             dbg += " Second look: " + Math.round(d2.foundRate * 100) + "% (" + d2.model + ", " + d2.delegate + ").";
             if (r2.ok || (!res.ok && d2.foundRate > data.foundRate)) { data = d2; res = r2; }
           }
-          if (!res.ok) { lastProblem = { kind: "noflare", debug: dbg }; location.hash = "#/problem"; return; }
+          if (!res.ok) { lastProblem = { kind: "noflare", debug: dbg, move: job.move }; location.hash = "#/problem"; return; }
           const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
           delete res.filmTips;
           await Store.put({ id, t: Date.now(), move: job.move, video: job.file, raw: data, thumb: data.thumb, findings: res.findings, res, stats: { slow: job.slow || 1, seconds: data.seconds, msPerFrame: data.msPerFrame, read: data.read, delegate: data.delegate, model: data.model, w: data.w, h: data.h, duration: data.duration } });
@@ -390,13 +391,13 @@
   function problemScreen() {
     const p = lastProblem || { kind: "error", msg: "Something went wrong." };
     const why = p.kind === "noflare"
-      ? "I couldn't find a flare in that clip. Make sure the clip has at least one flare, with your whole body in the frame, then try again."
+      ? "I couldn't find " + (p.move === "windmill" ? "a windmill" : "a flare") + " in that clip. Make sure the clip has at least one " + (p.move === "windmill" ? "windmill" : "flare") + ", with your whole body in the frame, then try again."
       : p.msg;
     const tips = RULES.map(r => "<li><b>" + r[1] + ".</b> " + r[2] + "</li>").join("");
     return {
       css: "",
       html: "<div class='mono' style='color:var(--coral)'>COULDN'T SCAN IT</div><h1>Let's <em>film it again.</em></h1><p class='lead'>" + E(why) + "</p>" +
-        "<div class='card'><ul class='tips'>" + tips + "</ul></div>" + (p.debug ? "<p class='small mono' style='opacity:.6'>" + E(p.debug) + "</p>" : "") + "<a class='btn' href='#/move/flare'>Try another video</a><a class='btn ghost' href='#/'>Home</a>",
+        "<div class='card'><ul class='tips'>" + tips + "</ul></div>" + (p.debug ? "<p class='small mono' style='opacity:.6'>" + E(p.debug) + "</p>" : "") + "<a class='btn' href='#/move/" + (p.move === "windmill" ? "windmill" : "flare") + "'>Try another video</a><a class='btn ghost' href='#/'>Home</a>",
     };
   }
 
@@ -528,7 +529,7 @@
         installCard +
         "<div class='card'><h2>Your videos</h2><p>Your videos never leave your phone, and they aren't saved. Only your results and a small picture are, on this phone. You can delete them any time.</p>" +
         "<button type='button' class='btn ghost danger' id='del'>Delete all my results</button><p class='small' id='delmsg'></p></div>" +
-        "<div class='card'><h2>About</h2><p>BreakDecode, early version. Flare is the only move I can judge so far. Windmill and Airflare are coming later.</p><p class='small' id='spd'></p></div>",
+        "<div class='card'><h2>About</h2><p>BreakDecode, early version. Flare is the only move I can judge so far. Windmill is in beta, with coaching points but no scoring yet. Airflare is coming later.</p><p class='small' id='spd'></p></div>",
       init() {
         const box = $("#sw"); let cur = lsGet("bd_theme", "mint");
         Object.keys(T).forEach(k => {

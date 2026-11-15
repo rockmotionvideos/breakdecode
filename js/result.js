@@ -144,9 +144,34 @@ if (N > 1 && R.video) requestAnimationFrame(tick);
       return `<div class="tile na${t.wide ? " wide" : ""}"><div class="trow"><span class="ti na">${ICON_NA}</span><span class="chip na">NOT IN VIDEO</span></div><div class="tname">${E(t.name)}</div><div class="td">${E(t.desc)}</div></div>`;
     }).join("");
 
+    const WM = res.kind === "windmill", MV = WM ? "Windmill" : "Flare";
     let focus, drills = "", badge, h1, live, checks = "", tipsSec = "", notice = "";
     const drillCards = res.drills.map((d, i) => `<div class="drill"><div class="num">${String(i + 1).padStart(2, "0")}</div><div><div class="for">FOR: ${E(d.for.toUpperCase())}</div><p>${E(d.text)}</p></div></div>`).join("");
-    if (track === "refuse") {
+    if (WM) {
+      badge = '<span class="check"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#04120e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>SCAN COMPLETE';
+      h1 = "Windmill<br>scan <em>done</em>";
+      live = '<span class="live"><i></i>BETA</span>';
+      focus = `
+    <div class="head rise" style="--d:.3s"><span class="idx">01</span><span class="label">WATCH FOR THESE IN YOUR REPLAY</span></div>
+    <section class="focus rise" style="--d:.35s">
+      <div class="rings"></div>
+      <div class="tag"><i></i>WINDMILL BETA</div>
+      <h2>I TRACKED YOUR WINDMILL</h2>
+      <p>I'm still learning to judge windmills, so I won't give you a pass or fail yet. Watch your replay and check these yourself:</p>
+    </section>
+    <div class="drills rise" style="--d:.4s">${res.points.map((p, i) => `<div class="drill"><div class="num">${String(i + 1).padStart(2, "0")}</div><div><div class="for">${E(p[0])}</div><p>${E(p[1])}</p></div></div>`).join("")}</div>`;
+      drills = `
+    <section class="rise" style="--d:.55s">
+      <div class="head"><span class="idx">02</span><span class="label">PRACTISE THIS</span></div>
+      <div class="drills">${res.practice.map((p, i) => `<div class="drill"><div class="num">${String(i + 1).padStart(2, "0")}</div><div><div class="for">${E(p[0])}</div><p>${E(p[1])}</p></div></div>`).join("")}</div>
+      <a href="#" onclick="parent.location.hash='#/exercises/windmill';return false" class="exlink" style="margin-top:12px"><span class="exic">&#9654;</span><span><b>WINDMILL EXERCISES</b><br>Drills and videos</span><span class="exar">&rarr;</span></a>
+    </section>`;
+      tipsSec = `
+  <section class="rise" style="--d:.65s">
+    <div class="head"><span class="idx">03</span><span class="label">WINDMILL STYLES</span><span class="swipe">SWIPE →</span></div>
+    <div class="nexts">${res.tips.map(t => `<div class="next"><div class="nn">${E(t.badge)}</div><h4>${E(t.title)}</h4><p>${E(t.text)}</p></div>`).join("")}</div>
+  </section>`;
+    } else if (track === "refuse") {
       focus = `
     <div class="head rise" style="--d:.3s"><span class="idx bad">01</span><span class="label">WHAT HAPPENED</span></div>
     <section class="focus bad rise" style="--d:.35s">
@@ -219,12 +244,12 @@ if (N > 1 && R.video) requestAnimationFrame(tick);
     const script = REPLAY_SCRIPT.replace("__REPLAY__", () => replayJSON);
     const nav = `<div style="position:fixed;left:14px;right:14px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:99;display:flex;gap:10px;padding:8px;border-radius:24px;background:rgba(7,9,10,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.12);box-shadow:0 14px 40px rgba(0,0,0,.5);font-family:system-ui,sans-serif">
 <a href="#" onclick="parent.location.hash='#/start';return false" style="flex:1;text-align:center;padding:13px;border-radius:17px;background:rgba(255,255,255,.07);color:#e8f3f0;text-decoration:none;font-weight:600">Menu</a>
-<a href="#" onclick="parent.location.hash='#/move/flare';return false" style="flex:2;text-align:center;padding:13px;border-radius:17px;background:linear-gradient(90deg,#2ef2c0,#27c8ff);color:#04110d;text-decoration:none;font-weight:700">Scan another flare</a></div><div style="height:96px"></div>`;
+<a href="#" onclick="parent.location.hash='#/move/${MV.toLowerCase()}';return false" style="flex:2;text-align:center;padding:13px;border-radius:17px;background:linear-gradient(90deg,#2ef2c0,#27c8ff);color:#04110d;text-decoration:none;font-weight:700">Scan another ${MV.toLowerCase()}</a></div><div style="height:96px"></div>`;
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
-<title>Flare feedback</title>
+<title>${MV} feedback</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>${window.BD_CSS.feedback}
 .tap{cursor:pointer}.tex{margin-top:10px;font-family:'Space Mono',monospace;font-size:9.5px;letter-spacing:.14em;color:var(--cyan)}.exlink{display:flex;align-items:center;gap:14px;padding:16px;border-radius:22px;text-decoration:none;color:var(--text);background:linear-gradient(150deg,rgba(46,242,192,.14),rgba(255,255,255,.03) 65%);border:1px solid rgba(46,242,192,.35);font-size:14px;line-height:1.4;color:#b7c3c0}.exlink b{font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.16em;color:var(--text)}.exic{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,var(--mint),var(--cyan));color:#04120e;font-size:14px}.exar{margin-left:auto;color:var(--mint);font-size:20px}.next .go{margin-top:14px;font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.14em;color:var(--cyan)}</style></head>
@@ -232,7 +257,7 @@ if (N > 1 && R.video) requestAnimationFrame(tick);
 <div class="bg"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i><div class="grid-bg"></div><div class="grain"></div></div>
 <main class="phone">
   <div class="top">
-    <div class="brand"><svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="#2ef2c0" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="#2ef2c0"/></svg>FLARE<span>//</span>CHECK</div>
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="#2ef2c0" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="#2ef2c0"/></svg>${MV.toUpperCase()}<span>//</span>CHECK</div>
     ${live}
   </div>
   <div class="success rise">${badge}</div>
@@ -242,7 +267,7 @@ if (N > 1 && R.video) requestAnimationFrame(tick);
     <div class="prings"></div><div class="scan"></div>
     <canvas id="cv" width="760" height="560"></canvas>
     <span class="corner c1"></span><span class="corner c2"></span><span class="corner c3"></span><span class="corner c4"></span>
-    <div class="hud-top"><span>// YOUR FLARE, SCANNED</span><span class="rec"><i></i>REPLAY</span></div>
+    <div class="hud-top"><span>// YOUR ${MV.toUpperCase()}, SCANNED</span><span class="rec"><i></i>REPLAY</span></div>
     <div class="hud-bot"><div id="clock">00:00.0</div><div class="track"><i id="prog"></i></div></div>
   </div>` : ""}
   ${notice}
