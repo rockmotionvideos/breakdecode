@@ -1,0 +1,286 @@
+// FILE NAME: result.js
+// Builds the feedback page for one scan (the coach's remark, the checks, drills, tips and the skeleton replay).
+// It is shown inside the app in its own frame, so its styles never clash with the other screens.
+(function () {
+  "use strict";
+  const E = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const ICON_OK = '<svg viewBox="0 0 24 24" width="16" height="16"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICON_BAD = '<svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 6v8M12 18v.01" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/></svg>';
+  const ICON_NA = '<svg viewBox="0 0 24 24" width="16" height="16"><path d="M7 12h10" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>';
+
+  const REPLAY_SCRIPT = String.raw`
+const R = __REPLAY__;
+const cv = document.getElementById('cv'), cx = cv.getContext('2d');
+const clock = document.getElementById('clock'), prog = document.getElementById('prog');
+const J = Object.fromEntries(R.joints.map((n, i) => [n, i]));
+const BONES = [["left_shoulder","right_shoulder"],["left_hip","right_hip"],["left_shoulder","left_hip"],["right_shoulder","right_hip"],
+  ["left_shoulder","left_elbow"],["left_elbow","left_wrist"],["right_shoulder","right_elbow"],["right_elbow","right_wrist"],
+  ["left_hip","left_knee"],["left_knee","left_ankle"],["left_ankle","left_heel"],
+  ["right_hip","right_knee"],["right_knee","right_ankle"],["right_ankle","right_heel"]];
+const SS = 1.5; cv.width = 760 * SS; cv.height = 560 * SS;   // drawn at 1.5x so the lines stay crisp on a phone screen
+const W = 760, H = 560, PAD = 105;
+const [bx0, by0, bx1, by1] = R.box;
+const sc = Math.min((W - 2*PAD) / Math.max(bx1 - bx0, 1), (H - 2*PAD) / Math.max(by1 - by0, 1));
+const ox = (W - sc * (bx1 - bx0)) / 2 - sc * bx0, oy = (H - sc * (by1 - by0)) / 2 - sc * by0 + 10;
+const P = (p) => [p[0] * sc + ox, p[1] * sc + oy];
+const N = R.frames.length, total = N * R.dt, HOLD = 1.0;
+function pose(fi, u) {
+  const a = R.frames[fi], b = R.frames[Math.min(N - 1, fi + 1)];
+  return a.map((p, i) => {
+    const q = b[i];
+    if (p && q) return [p[0] + (q[0] - p[0]) * u, p[1] + (q[1] - p[1]) * u];
+    return p;
+  });
+}
+function line(A, B, glow, core) {
+  cx.beginPath(); cx.moveTo(A[0], A[1]); cx.lineTo(B[0], B[1]);
+  cx.strokeStyle = 'rgba(46,242,192,.10)'; cx.lineWidth = glow; cx.stroke();
+  cx.strokeStyle = '#2ef2c0'; cx.lineWidth = core; cx.stroke();
+  cx.strokeStyle = 'rgba(225,255,248,.85)'; cx.lineWidth = Math.max(1, core / 3); cx.stroke();
+}
+function draw(fi, u = 0) {
+  cx.setTransform(SS, 0, 0, SS, 0, 0);
+  cx.clearRect(0, 0, W, H);
+  const fy = R.floor * sc + oy;
+  const g = cx.createLinearGradient(0, fy, W, fy);
+  g.addColorStop(0, 'rgba(46,242,192,0)'); g.addColorStop(.5, 'rgba(46,242,192,.7)'); g.addColorStop(1, 'rgba(46,242,192,0)');
+  cx.fillStyle = g; cx.fillRect(0, fy, W, 2);
+  const fade = cx.createLinearGradient(0, fy, 0, fy + 90);
+  fade.addColorStop(0, 'rgba(46,242,192,.10)'); fade.addColorStop(1, 'rgba(46,242,192,0)');
+  cx.fillStyle = fade; cx.fillRect(0, fy + 2, W, 90);
+  const fr = pose(fi, u);
+  cx.lineCap = 'round'; cx.lineJoin = 'round';
+  for (const [a, b] of BONES) {
+    const pa = fr[J[a]], pb = fr[J[b]]; if (!pa || !pb) continue;
+    line(P(pa), P(pb), 10, 3.5);
+  }
+  const sh = [fr[J.left_shoulder], fr[J.right_shoulder]].filter(Boolean);
+  const hd = fr[J.head];
+  if (hd) {
+    const Hh = P(hd);
+    if (sh.length === 2) line(P([(sh[0][0] + sh[1][0]) / 2, (sh[0][1] + sh[1][1]) / 2]), Hh, 10, 3.5);
+    cx.beginPath(); cx.arc(Hh[0], Hh[1], 13, 0, 7);
+    cx.fillStyle = '#0b0d0e'; cx.fill(); cx.lineWidth = 2.5; cx.strokeStyle = '#27c8ff'; cx.stroke();
+  }
+  for (const n of R.joints) {
+    if (n === 'head') continue; const p = fr[J[n]]; if (!p) continue;
+    const q = P(p);
+    cx.beginPath(); cx.arc(q[0], q[1], 4.5, 0, 7); cx.fillStyle = '#fff'; cx.fill();
+  }
+}
+
+// ---- the person's own video, shown as a glowing wireframe with markers on the joints ----
+let VID = null, vdraw = false;
+if (R.video) {
+  VID = document.createElement('video'); VID.muted = true; VID.playsInline = true; VID.setAttribute('playsinline', ''); VID.preload = 'auto'; VID.src = R.video;
+  const EW = 260, EH = Math.max(2, Math.round(EW * R.vh / R.vw)), ec = document.createElement('canvas'); ec.width = EW; ec.height = EH;
+  const ex = ec.getContext('2d', { willReadFrequently: true });
+  const vs = Math.min(W / R.vw, H / R.vh), dw = R.vw * vs, dh = R.vh * vs, dx = (W - dw) / 2, dy = (H - dh) / 2;
+  const VP = (p) => [dx + p[0] * vs, dy + p[1] * vs];
+  const f = R.slow || 1, mt0 = R.t0 * f, mt1 = (R.t0 + total) * f;
+  function wireDraw(fr) {
+    ex.drawImage(VID, 0, 0, EW, EH);
+    const im = ex.getImageData(0, 0, EW, EH), d = im.data, g = new Float32Array(EW * EH);
+    for (let i = 0, k = 0; i < d.length; i += 4, k++) g[k] = d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11;
+    for (let y = 1; y < EH - 1; y++) for (let x = 1; x < EW - 1; x++) {
+      const k = y * EW + x, gx = g[k + 1] - g[k - 1] + (g[k - EW + 1] - g[k - EW - 1] + g[k + EW + 1] - g[k + EW - 1]) * .5, gy = g[k + EW] - g[k - EW] + (g[k + EW + 1] - g[k - EW + 1] + g[k + EW - 1] - g[k - EW - 1]) * .5;
+      const m = Math.min(255, Math.sqrt(gx * gx + gy * gy) * 1.6), o = k * 4;
+      d[o] = 60; d[o + 1] = 235; d[o + 2] = 205; d[o + 3] = m > 28 ? Math.min(255, m * 1.4) : 0;
+    }
+    ex.putImageData(im, 0, 0);
+    cx.setTransform(SS, 0, 0, SS, 0, 0);
+    cx.fillStyle = '#061014'; cx.fillRect(0, 0, W, H);
+    cx.globalAlpha = .3; cx.drawImage(VID, dx, dy, dw, dh); cx.globalAlpha = 1;
+    cx.imageSmoothingEnabled = true; cx.drawImage(ec, dx, dy, dw, dh);
+    if (!fr) return;
+    cx.lineCap = 'round'; cx.lineJoin = 'round';
+    cx.lineWidth = 2; cx.strokeStyle = 'rgba(255,255,255,.7)';
+    for (const [a, b] of BONES) { const pa = fr[J[a]], pb = fr[J[b]]; if (!pa || !pb) continue; const A = VP(pa), B = VP(pb); cx.beginPath(); cx.moveTo(A[0], A[1]); cx.lineTo(B[0], B[1]); cx.stroke(); }
+    const sh = [fr[J.left_shoulder], fr[J.right_shoulder]].filter(Boolean), hd = fr[J.head];
+    if (hd && sh.length === 2) { const A = VP([(sh[0][0] + sh[1][0]) / 2, (sh[0][1] + sh[1][1]) / 2]), B = VP(hd); cx.beginPath(); cx.moveTo(A[0], A[1]); cx.lineTo(B[0], B[1]); cx.stroke(); }
+    for (const n of R.joints) {
+      const p = fr[J[n]]; if (!p) continue; const q = VP(p), big = n === 'head';
+      cx.beginPath(); cx.arc(q[0], q[1], big ? 9 : 6.5, 0, 7); cx.strokeStyle = '#2ef2c0'; cx.lineWidth = 2; cx.stroke();
+      cx.beginPath(); cx.arc(q[0], q[1], 2.6, 0, 7); cx.fillStyle = '#fff'; cx.fill();
+    }
+  }
+  VID.addEventListener('error', () => { VID = null; const pl = document.querySelector('.player'); if (pl) pl.style.display = 'none'; });
+  VID.addEventListener('loadeddata', () => { VID.currentTime = mt0; VID.play().catch(() => { }); vdraw = true; });
+  function vtick() {
+    if (!VID) return false;
+    if (!vdraw) return false;
+    let m = VID.currentTime;
+    if (m >= mt1 - .02 || m < mt0 - .1) { if (m >= mt1 - .02) { VID.currentTime = mt0; } m = Math.max(m, mt0); }
+    const real = m / f, t = Math.max(0, Math.min(total - .0001, real - R.t0)), fi = Math.min(N - 1, Math.floor(t / R.dt));
+    wireDraw(pose(fi, t / R.dt - fi));
+    clock.textContent = String(Math.floor(real / 60)).padStart(2, '0') + ':' + (real % 60).toFixed(1).padStart(4, '0');
+    prog.style.width = (t / total * 100) + '%';
+    return true;
+  }
+  window.__vtick = vtick;
+}
+let t0 = null;
+function tick(ts) {
+  if (window.__vtick) window.__vtick();
+  requestAnimationFrame(tick); return;
+  if (t0 === null) t0 = ts;
+  const t = ((ts - t0) / 1000) % (total + HOLD);
+  const tc = Math.min(t, total - 0.0001);
+  const f = tc / R.dt, fi = Math.min(N - 1, Math.floor(f));
+  draw(fi, f - fi);
+  const tt = R.t0 + Math.min(t, total);
+  clock.textContent = String(Math.floor(tt / 60)).padStart(2, '0') + ':' + (tt % 60).toFixed(1).padStart(4, '0');
+  prog.style.width = (Math.min(t, total) / total * 100) + '%';
+  requestAnimationFrame(tick);
+}
+if (N > 1 && R.video) requestAnimationFrame(tick);
+`;
+
+  function build(res) {
+    const problems = res.problems, track = res.track;
+    const tiles = res.tiles.map(t => {
+      if (t.state === "bad") return `<div class="tile bad tap" onclick="parent.location.hash='#/exercises/${t.key}'"><div class="trow"><span class="ti bad">${ICON_BAD}</span><span class="chip bad">NEEDS WORK</span></div><div class="tname">${E(t.name)}</div><p>${E(t.short)}</p><div class="tex">EXERCISES &rarr;</div></div>`;
+      if (t.state === "ok") return `<div class="tile ok tap${t.wide ? " wide" : ""}" onclick="parent.location.hash='#/exercises/${t.key}'"><div class="trow"><span class="ti ok">${ICON_OK}</span><span class="chip ok">SOLID</span></div><div class="tname">${E(t.name)}</div><div class="td">${E(t.desc)}</div><div class="tex">EXERCISES &rarr;</div></div>`;
+      return `<div class="tile na${t.wide ? " wide" : ""}"><div class="trow"><span class="ti na">${ICON_NA}</span><span class="chip na">NOT IN VIDEO</span></div><div class="tname">${E(t.name)}</div><div class="td">${E(t.desc)}</div></div>`;
+    }).join("");
+
+    const WM = res.kind === "windmill", MV = WM ? "Windmill" : "Flare";
+    let focus, drills = "", badge, h1, live, checks = "", tipsSec = "", notice = "";
+    const drillCards = res.drills.map((d, i) => `<div class="drill"><div class="num">${String(i + 1).padStart(2, "0")}</div><div><div class="for">FOR: ${E(d.for.toUpperCase())}</div><p>${E(d.text)}</p></div></div>`).join("");
+    if (WM) {
+      badge = '<span class="check"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#04120e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>SCAN COMPLETE';
+      h1 = "Windmill<br>scan <em>done</em>";
+      live = '<span class="live"><i></i>BETA</span>';
+      focus = `
+    <div class="head rise" style="--d:.3s"><span class="idx">01</span><span class="label">WATCH FOR THESE IN YOUR REPLAY</span></div>
+    <section class="focus rise" style="--d:.35s">
+      <div class="rings"></div>
+      <div class="tag"><i></i>WINDMILL BETA</div>
+      <h2>I TRACKED YOUR WINDMILL</h2>
+      <p>I'm still learning to judge windmills, so I won't give you a pass or fail yet. Watch your replay and check these yourself:</p>
+    </section>
+    <div class="drills rise" style="--d:.4s">${res.points.map((p, i) => `<div class="drill"><div class="num">${String(i + 1).padStart(2, "0")}</div><div><div class="for">${E(p[0])}</div><p>${E(p[1])}</p></div></div>`).join("")}</div>`;
+      drills = `
+    <section class="rise" style="--d:.55s">
+      <div class="head"><span class="idx">02</span><span class="label">PRACTISE THIS</span></div>
+      <div class="drills">${res.practice.map((p, i) => `<div class="drill"><div class="num">${String(i + 1).padStart(2, "0")}</div><div><div class="for">${E(p[0])}</div><p>${E(p[1])}</p></div></div>`).join("")}</div>
+      <a href="#" onclick="parent.location.hash='#/exercises/windmill';return false" class="exlink" style="margin-top:12px"><span class="exic">&#9654;</span><span><b>WINDMILL EXERCISES</b><br>Drills and videos</span><span class="exar">&rarr;</span></a>
+    </section>`;
+      tipsSec = `
+  <section class="rise" style="--d:.65s">
+    <div class="head"><span class="idx">03</span><span class="label">WINDMILL STYLES</span><span class="swipe">SWIPE →</span></div>
+    <div class="nexts">${res.tips.map(t => `<div class="next"><div class="nn">${E(t.badge)}</div><h4>${E(t.title)}</h4><p>${E(t.text)}</p></div>`).join("")}</div>
+  </section>`;
+    } else if (track === "refuse") {
+      focus = `
+    <div class="head rise" style="--d:.3s"><span class="idx bad">01</span><span class="label">WHAT HAPPENED</span></div>
+    <section class="focus bad rise" style="--d:.35s">
+      <div class="tag bad"><i></i>RESCAN NEEDED</div>
+      <h2>I COULDN'T SEE YOU CLEARLY</h2>
+      <p>I won't guess at your flare when I can't see it. Here is what went wrong:</p>
+      <ul class="reasons">${res.refuseReasons.map(r => `<li>${E(r)}</li>`).join("")}</ul>
+    </section>`;
+      drills = `
+    <section class="rise" style="--d:.55s">
+      <div class="head"><span class="idx">02</span><span class="label">HOW TO FILM IT AGAIN</span></div>
+      <div class="drills">${res.filmTips.map((t, i) => `<div class="drill"><div class="num">${String(i + 1).padStart(2, "0")}</div><div><div class="for">FOR: A BETTER VIDEO</div><p>${E(t)}</p></div></div>`).join("")}</div>
+    </section>`;
+      badge = '<span class="check bad"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 6v8M12 18v.01" fill="none" stroke="#1a0904" stroke-width="3" stroke-linecap="round"/></svg></span>SCAN NOT CLEAR';
+      h1 = 'Flare<br>scan <em class="bad">unclear</em>';
+      live = '<span class="live bad"><i></i>RESCAN NEEDED</span>';
+    } else {
+      badge = '<span class="check"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#04120e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>SCAN COMPLETE';
+      h1 = "Flare<br>scan <em>success</em>";
+      live = '<span class="live"><i></i>ANALYSIS DONE</span>';
+      if (problems.length) {
+        focus = `
+    <div class="head rise" style="--d:.3s"><span class="idx">01</span><span class="label">COACH'S REMARK</span></div>
+    <section class="focus rise" style="--d:.35s">
+      <div class="rings"></div>
+      <div class="tag"><i></i>WHAT I SAW IN YOUR VIDEO</div>
+      <h2>${E(res.headline[problems[0]])}</h2>
+      <p>${E(res.observe[problems[0]])}</p>
+      <div class="why"><div class="wl">// TRY THIS</div><p>${E(res.fix[problems[0]])}</p></div>
+      <div class="why"><div class="wl">// WHY IT MATTERS</div><p>${E(res.why[problems[0]])}</p></div>
+    </section>`;
+        if (problems.length > 1) focus += `
+    <section class="focus also rise" style="--d:.4s">
+      <div class="tag"><i></i>ALSO IN YOUR VIDEO</div>
+      <h2>${E(res.headline[problems[1]])}</h2>
+      <p>${E(res.observe[problems[1]])}</p>
+      <div class="why"><div class="wl">// TRY THIS</div><p>${E(res.fix[problems[1]])}</p></div>
+    </section>`;
+        drills = `
+    <section class="rise" style="--d:.55s">
+      <div class="head"><span class="idx">03</span><span class="label">PRACTISE THIS</span></div>
+      <div class="drills">${drillCards}</div>
+    </section>`;
+      } else {
+        focus = `
+    <div class="head rise" style="--d:.3s"><span class="idx">01</span><span class="label">COACH'S REMARK</span></div>
+    <section class="focus rise" style="--d:.35s">
+      <div class="rings"></div>
+      <div class="tag"><i></i>LOOKING GOOD</div>
+      <h2>CLEAN FLARES</h2>
+      <p>Nice flares. I can't see anything clearly wrong here. Keep practising, repetition is the next step.</p>${res.fewRounds ? `<div class="why"><div class="wl">// NEXT LEVEL</div><p>The more rounds you stack in a row, the higher, fresher and cleaner every flare gets, and even your first few start to look better. Aim for 10. If you can't get there yet, push one more round each time and it will come.</p></div>` : ""}
+    </section>`;
+      }
+      checks = `
+  <section class="rise" style="--d:.45s">
+    <div class="head"><span class="idx">02</span><span class="label">WHAT I SAW</span></div>
+    <div class="grid">${tiles}</div>
+  </section>`;
+      const nxt = res.tips.map(t => { const wm = /WINDMILL/i.test(t.title); return `<div class="next${"?!".includes(t.badge) ? " ask" : ""}"${wm ? ` onclick="parent.location.hash='#/exercises/windmill'" style="cursor:pointer"` : ""}><div class="nn">${E(t.badge)}</div><h4>${E(t.title)}</h4><p>${E(t.text)}</p>${wm ? `<div class="go">SEE WINDMILL EXERCISES &rarr;</div>` : ""}</div>`; }).join("");
+      tipsSec = `
+  <section class="rise" style="--d:.65s">
+    <div class="head"><span class="idx">04</span><span class="label">FOR EVERY FLARE</span><span class="swipe">SWIPE →</span></div>
+    <div class="nexts">${nxt}</div>
+  </section>`;
+    }
+    const hasVid = !!(res.videoURL && res.vw && res.vh);
+    const tracking = { ok: "CLEAN", caution: "PARTIAL", refuse: "POOR" }[track];
+    const chips = "";
+    const replayJSON = JSON.stringify(Object.assign({}, res.replay, res.videoURL && res.vw && res.vh ? { video: res.videoURL, vw: res.vw, vh: res.vh, slow: res.slow || 1 } : {})).replace(/<\//g, "<\\/");
+    const script = REPLAY_SCRIPT.replace("__REPLAY__", () => replayJSON);
+    const nav = `<div style="position:fixed;left:14px;right:14px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:99;display:flex;gap:10px;padding:8px;border-radius:24px;background:rgba(7,9,10,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.12);box-shadow:0 14px 40px rgba(0,0,0,.5);font-family:system-ui,sans-serif">
+<a href="#" onclick="parent.location.hash='#/start';return false" style="flex:1;text-align:center;padding:13px;border-radius:17px;background:rgba(255,255,255,.07);color:#e8f3f0;text-decoration:none;font-weight:600">Menu</a>
+<a href="#" onclick="parent.location.hash='#/move/${MV.toLowerCase()}';return false" style="flex:2;text-align:center;padding:13px;border-radius:17px;background:linear-gradient(90deg,#2ef2c0,#27c8ff);color:#04110d;text-decoration:none;font-weight:700">Scan another ${MV.toLowerCase()}</a></div><div style="height:96px"></div>`;
+    return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>${MV} feedback</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>${window.BD_CSS.feedback}
+.tap{cursor:pointer}.tex{margin-top:10px;font-family:'Space Mono',monospace;font-size:9.5px;letter-spacing:.14em;color:var(--cyan)}.exlink{display:flex;align-items:center;gap:14px;padding:16px;border-radius:22px;text-decoration:none;color:var(--text);background:linear-gradient(150deg,rgba(46,242,192,.14),rgba(255,255,255,.03) 65%);border:1px solid rgba(46,242,192,.35);font-size:14px;line-height:1.4;color:#b7c3c0}.exlink b{font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.16em;color:var(--text)}.exic{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,var(--mint),var(--cyan));color:#04120e;font-size:14px}.exar{margin-left:auto;color:var(--mint);font-size:20px}.next .go{margin-top:14px;font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.14em;color:var(--cyan)}</style></head>
+<body>
+<div class="bg"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i><div class="grid-bg"></div><div class="grain"></div></div>
+<main class="phone">
+  <div class="top">
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="#2ef2c0" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="#2ef2c0"/></svg>${MV.toUpperCase()}<span>//</span>CHECK</div>
+    ${live}
+  </div>
+  <div class="success rise">${badge}</div>
+  <h1 class="rise" style="--d:.05s">${h1}</h1>
+  <div class="pills rise" style="--d:.1s">${chips}</div>
+  ${hasVid ? `  <div class="player rise" style="--d:.15s">
+    <div class="prings"></div><div class="scan"></div>
+    <canvas id="cv" width="760" height="560"></canvas>
+    <span class="corner c1"></span><span class="corner c2"></span><span class="corner c3"></span><span class="corner c4"></span>
+    <div class="hud-top"><span>// YOUR ${MV.toUpperCase()}, SCANNED</span><span class="rec"><i></i>REPLAY</span></div>
+    <div class="hud-bot"><div id="clock">00:00.0</div><div class="track"><i id="prog"></i></div></div>
+  </div>` : ""}
+  ${notice}
+  ${focus}
+  ${checks}
+  ${drills}
+  ${tipsSec}
+  <div class="foot">KEEP TRAINING</div>
+</main>
+${nav}
+<script>${script}<\/script>
+</body></html>`;
+  }
+
+  window.BDResult = { build };
+})();
