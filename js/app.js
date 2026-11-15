@@ -227,7 +227,7 @@
     if (last) {
       tl = "Today, for your " + moveName(last.move); tx = reminderText(last);
       const inf = last.findings;
-      const tag = inf ? (sc.move === "windmill" ? "<span class='tg ok'>Windmill</span>" : inf.main ? "<span class='tg bad'>" + AREA_NAME[inf.main] + "</span>" : "<span class='tg ok'>Looked good</span>") : "";
+      const tag = inf ? (last.move === "windmill" ? "<span class='tg ok'>Windmill</span>" : inf.main ? "<span class='tg bad'>" + AREA_NAME[inf.main] + "</span>" : "<span class='tg ok'>Looked good</span>") : "";
       const img = last.thumb ? "<img class='pi' src='" + last.thumb + "' alt=''>" : "";
       shot = "<a class='gl shot' href='#/result/" + last.id + "'>" + img + "<div class='sl'>Last scan</div><h2>" + moveName(last.move) + "</h2>" + tag + "</a>";
     } else {
